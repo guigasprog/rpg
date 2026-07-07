@@ -1,5 +1,5 @@
 import path from "node:path";
-import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 // SQLite usa caminho relativo (file:./dev.db), que o CLI resolve a partir de
 // prisma/, mas o runtime do Next resolve de outro diretório. Tornamos o

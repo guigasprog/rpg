@@ -1,4 +1,4 @@
-import type { Character } from "@/generated/prisma/client";
+import type { Character } from "@prisma/client";
 import { ROLES } from "@/lib/roles";
 import { computeMaxPv, computeMaxSan } from "@/lib/game";
 
