@@ -50,6 +50,7 @@ model Character {
   ownerId     String?
   owner       User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   arquivado   Boolean @default(false) // dossiê inativo (invisível ao jogador)
+  mostrarNaMesa Boolean @default(false) // exibe o retrato na tela de todos
   portraitUrl String?
   occupation  String?
   appearance  String?

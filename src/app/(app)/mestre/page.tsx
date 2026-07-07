@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireMaster } from "@/lib/session";
 import { ResourceMeter } from "@/components/ResourceMeter";
 import { OccultismToggle } from "@/components/OccultismToggle";
+import { OnStageToggle } from "@/components/OnStageToggle";
 import { ArchiveToggle } from "@/components/ArchiveToggle";
 import { AccountActions } from "@/components/AccountActions";
 import { CreatePlayerForm } from "@/components/CreatePlayerForm";
@@ -118,6 +119,10 @@ export default async function MasterDashboard() {
                   <OccultismToggle
                     characterId={c.id}
                     unlocked={c.occultismUnlocked}
+                  />
+                  <OnStageToggle
+                    characterId={c.id}
+                    mostrarNaMesa={c.mostrarNaMesa}
                   />
                   <ArchiveToggle
                     characterId={c.id}

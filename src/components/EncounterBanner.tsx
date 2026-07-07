@@ -7,6 +7,7 @@ export interface EncounterItem {
   id: string;
   titulo: string;
   imagemUrl: string | null;
+  soImagem?: boolean; // personagem mostrado à mesa: exibe só a imagem
 }
 
 // Dialog dramático sobre a página: só imagem + nome. Avisa que "algo vai rolar"
@@ -48,17 +49,23 @@ export function EncounterBanner({ items }: { items: EncounterItem[] }) {
           <div className="flex flex-col items-center gap-4">
             {visiveis.map((it) => (
               <div key={it.id} className="flex flex-col items-center gap-2">
-                <div className="rabisco flex h-40 w-32 items-center justify-center overflow-hidden rounded">
+                <div
+                  className={`rabisco flex items-center justify-center overflow-hidden rounded ${
+                    it.soImagem ? "h-56 w-44" : "h-40 w-32"
+                  }`}
+                >
                   {it.imagemUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={it.imagemUrl} alt={it.titulo} />
+                    <img src={it.imagemUrl} alt={it.titulo || "aparição"} />
                   ) : (
                     <EldritchSketch className="text-6xl text-stamp/60" />
                   )}
                 </div>
-                <span className="glitch display text-center text-2xl text-paper-light">
-                  {it.titulo}
-                </span>
+                {!it.soImagem && it.titulo && (
+                  <span className="glitch display text-center text-2xl text-paper-light">
+                    {it.titulo}
+                  </span>
+                )}
               </div>
             ))}
           </div>

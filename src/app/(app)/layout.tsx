@@ -14,12 +14,33 @@ export default async function AppLayout({
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
 
-  // Aparições "em cena" disparadas pelo Mestre (monstros/NPCs) — só imagem+nome.
-  const encounters = await prisma.loreEntry.findMany({
-    where: { revelado: true },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, titulo: true, imagemUrl: true },
-  });
+  // Aparições disparadas pelo Mestre: monstros/NPCs (imagem+nome) e
+  // personagens "mostrados à mesa" (só a imagem).
+  const [lore, naMesa] = await Promise.all([
+    prisma.loreEntry.findMany({
+      where: { revelado: true },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, titulo: true, imagemUrl: true },
+    }),
+    prisma.character.findMany({
+      where: { mostrarNaMesa: true },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, name: true, portraitUrl: true },
+    }),
+  ]);
+  const encounters = [
+    ...lore.map((e) => ({
+      id: `lore-${e.id}`,
+      titulo: e.titulo,
+      imagemUrl: e.imagemUrl,
+    })),
+    ...naMesa.map((c) => ({
+      id: `char-${c.id}`,
+      titulo: c.name,
+      imagemUrl: c.portraitUrl,
+      soImagem: true,
+    })),
+  ];
 
   return (
     <div className="flex min-h-screen flex-col">

@@ -571,3 +571,22 @@ export async function setCharacterArchived(
   revalidateCharacter(id);
   return { ok: true, id };
 }
+
+// GM exibe/oculta o retrato do personagem na tela de todos (só a imagem).
+export async function setCharacterOnStage(
+  id: string,
+  mostrar: boolean,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.character.update({
+    where: { id },
+    data: { mostrarNaMesa: mostrar },
+  });
+  revalidateCharacter(id);
+  revalidatePath("/manual");
+  return { ok: true, id };
+}
