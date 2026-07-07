@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EldritchSketch, Pentagram, SigilRow } from "@/components/OccultSigils";
 
 export interface EncounterItem {
@@ -10,12 +10,44 @@ export interface EncounterItem {
   soImagem?: boolean; // personagem mostrado à mesa: exibe só a imagem
 }
 
-// Dialog dramático sobre a página: só imagem + nome. Avisa que "algo vai rolar"
-// (monstro/NPC), sem revelar ficha. Controlado pelo Mestre (disparo).
-export function EncounterBanner({ items }: { items: EncounterItem[] }) {
-  const [dismissed, setDismissed] = useState<string[]>([]);
-  const visiveis = items.filter((i) => !dismissed.includes(i.id));
+const POLL_MS = 5000;
 
+// Dialog dramático sobre a página: monstros/NPCs (imagem+nome) e personagens
+// mostrados à mesa (só imagem). Controlado pelo Mestre. Atualiza "ao vivo" via
+// polling — aparece/some para todos os conectados sem precisar recarregar.
+export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) {
+  const [items, setItems] = useState<EncounterItem[]>(initial);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function puxar() {
+      try {
+        const res = await fetch("/api/encounters", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { items: EncounterItem[] };
+        if (!ativo) return;
+        const novos = data.items ?? [];
+        setItems(novos);
+        // Limpa da lista de "fechados" o que não está mais ativo — assim, se o
+        // Mestre reexibir depois, o dialog volta a aparecer.
+        const ativosIds = new Set(novos.map((i) => i.id));
+        setDismissed((prev) => prev.filter((id) => ativosIds.has(id)));
+      } catch {
+        // ignora erros de rede transitórios
+      }
+    }
+
+    const t = setInterval(puxar, POLL_MS);
+    puxar();
+    return () => {
+      ativo = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const visiveis = items.filter((i) => !dismissed.includes(i.id));
   if (visiveis.length === 0) return null;
 
   function fechar() {
@@ -29,13 +61,11 @@ export function EncounterBanner({ items }: { items: EncounterItem[] }) {
       aria-label="Aparição"
       className="fixed inset-0 z-[100] flex items-center justify-center p-4"
     >
-      {/* Fundo escurecido */}
       <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={fechar}
       />
 
-      {/* Caixa de diálogo */}
       <div className="irreal folder-open relative z-[101] w-full max-w-md rounded-md border border-stamp/60 bg-noir-black/95 p-6 shadow-2xl">
         <div className="ink-reveal">
           <div className="mb-3 flex items-center justify-center gap-3 text-stamp">
