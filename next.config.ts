@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  // Garante que o engine do Prisma (client gerado em src/generated/prisma)
+  // seja empacotado nas funções serverless da Vercel.
+  outputFileTracingIncludes: {
+    "/**": ["./src/generated/prisma/**/*"],
+  },
   // Libera o acesso ao servidor de DEV a partir de outros dispositivos
   // (o Next 16 bloqueia recursos de dev cross-origin por padrão).
   allowedDevOrigins: [

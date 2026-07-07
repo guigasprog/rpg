@@ -4,8 +4,10 @@
 // Docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  // Gera o engine para o runtime da Vercel (Linux) além do nativo (dev local).
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
