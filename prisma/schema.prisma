@@ -1,0 +1,91 @@
+// Esquema Prisma — Arquivo Sombrio
+// PostgreSQL (Neon) em dev e produção.
+// DATABASE_URL: connection string do Neon (use a POOLED, com ?sslmode=require).
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Papéis: "MASTER" | "PLAYER"
+// (SQLite não suporta enums do Prisma; validado em app via src/lib/roles.ts)
+
+model User {
+  id           String      @id @default(cuid())
+  username     String      @unique
+  passwordHash String
+  role         String      @default("PLAYER")
+  characters   Character[]
+  createdAt    DateTime    @default(now())
+}
+
+// Livro do Mestre (entradas criadas pelo GM). Categoria: MONSTRO | LOCAL | RITUAL_PNJ
+model LoreEntry {
+  id        String   @id @default(cuid())
+  categoria String
+  titulo    String
+  conteudo  String
+  perigo    Int      @default(0) // 0-3 (usado sobretudo em monstros)
+  imagemUrl String? // link da ilustração/rascunho (colado pelo GM)
+  revelado  Boolean  @default(false) // liberado como card de combate p/ jogadores
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoria])
+}
+
+model Character {
+  id          String  @id @default(cuid())
+  name        String
+  playerName  String
+  // Nullable: apagar a conta do dono DESVINCULA o personagem (não apaga).
+  ownerId     String?
+  owner       User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  arquivado   Boolean @default(false) // dossiê inativo (invisível ao jogador)
+  portraitUrl String?
+  occupation  String?
+  appearance  String?
+
+  attrInvestigar Int @default(0)
+  attrCombate    Int @default(0)
+  attrLabia      Int @default(0)
+  attrMente      Int @default(0)
+
+  // Classe: "ESPECIALISTA" | "COMBATENTE" | "OCULTISTA"
+  classe            String  @default("ESPECIALISTA")
+  subclasse         String? // chave da subclasse (liberada pelo GM)
+  nivel             Int     @default(0) // 0-25 (0 = Comum)
+  especialistaFocos String? // JSON: até 2 chaves de atributo
+
+  // PV/SAN: máximos derivados (recalculados no servidor). Atuais aceitam
+  // sobrevida (> máx) e valores negativos (< 0).
+  pvAtual  Int @default(10)
+  pvMax    Int @default(10)
+  sanAtual Int @default(10)
+  sanMax   Int @default(10)
+
+  // Proposta do Além: "NENHUMA" | "PENDENTE" | "ACEITA" | "RECUSADA"
+  propostaStatus String  @default("NENHUMA")
+  propostaTexto  String?
+
+  // JSON armazenado como texto no SQLite.
+  inventory   String? // JSON: string[] de itens
+  playerNotes String? // anotações do próprio jogador
+  masterNotes String? // NUNCA enviado ao jogador
+
+  occultismUnlocked   Boolean   @default(false)
+  occultismLevel      Int       @default(0) // 0-3, revelação gradual
+  occultismContent    String? // JSON: conteúdo revelado (só GM ou desbloqueado)
+  occultismUnlockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
