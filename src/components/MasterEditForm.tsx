@@ -104,7 +104,7 @@ export function MasterEditForm({ character }: Props) {
     if (!newItem.trim()) return;
     setInventory((p) => [
       ...p,
-      { nome: newItem.trim(), dano: newDano, qtd: 1, usos: 1 },
+      { nome: newItem.trim(), dano: newDano, qtd: 1, usos: 1, efeitoPv: 0, efeitoSan: 0 },
     ]);
     setNewItem("");
     setNewDano("");

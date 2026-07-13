@@ -81,6 +81,18 @@ export function CharacterSheet({ character }: Props) {
     router.refresh();
   }
 
+  // Usar item: aplica o efeito (PV/SAN) e gasta 1 uso. Salve para persistir.
+  function usarItem(i: number) {
+    const it = inventory[i];
+    if (!it || it.usos <= 0) return;
+    if (it.efeitoPv) setPvAtual((v) => v + it.efeitoPv);
+    if (it.efeitoSan) setSanAtual((v) => v + it.efeitoSan);
+    setInventory((prev) =>
+      prev.map((x, j) => (j === i ? { ...x, usos: Math.max(0, x.usos - 1) } : x)),
+    );
+    setMsg('Item usado — não esqueça de "Salvar".');
+  }
+
   const combatente = character.classe === "COMBATENTE";
   const pvPerLevel = CLASS_INFO[character.classe]?.pvPorNivel ?? 1;
   const sanPerLevel = CLASS_INFO[character.classe]?.sanPorNivel ?? 1;
@@ -305,6 +317,7 @@ export function CharacterSheet({ character }: Props) {
             canEdit={canEdit}
             combate={character.attrCombate}
             combatente={combatente}
+            onUsar={usarItem}
           />
         )}
 
@@ -611,32 +624,34 @@ function InventoryTab({
   canEdit,
   combate,
   combatente,
+  onUsar,
 }: {
   inventory: InventoryItem[];
   setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   canEdit: boolean;
   combate: number;
   combatente: boolean;
+  onUsar: (i: number) => void;
 }) {
   const [nome, setNome] = useState("");
   const [dano, setDano] = useState("");
   const [qtd, setQtd] = useState(1);
   const [usos, setUsos] = useState(1);
+  const [efeitoPv, setEfeitoPv] = useState(0);
+  const [efeitoSan, setEfeitoSan] = useState(0);
 
   function add() {
     if (!nome.trim()) return;
-    setInventory((p) => [...p, { nome: nome.trim(), dano, qtd, usos }]);
+    setInventory((p) => [
+      ...p,
+      { nome: nome.trim(), dano, qtd, usos, efeitoPv, efeitoSan },
+    ]);
     setNome("");
     setDano("");
     setQtd(1);
     setUsos(1);
-  }
-  function usar(i: number) {
-    setInventory((prev) =>
-      prev.map((it, j) =>
-        j === i ? { ...it, usos: Math.max(0, it.usos - 1) } : it,
-      ),
-    );
+    setEfeitoPv(0);
+    setEfeitoSan(0);
   }
 
   return (
@@ -659,6 +674,17 @@ function InventoryTab({
               {item.dano ? (
                 <span className="ml-2 text-xs text-stamp">({item.dano})</span>
               ) : null}
+              {(item.efeitoPv !== 0 || item.efeitoSan !== 0) && (
+                <span className="ml-2 text-[0.65rem] text-emerald-800">
+                  {item.efeitoPv !== 0
+                    ? `${item.efeitoPv > 0 ? "+" : ""}${item.efeitoPv} PV`
+                    : ""}
+                  {item.efeitoPv !== 0 && item.efeitoSan !== 0 ? " · " : ""}
+                  {item.efeitoSan !== 0
+                    ? `${item.efeitoSan > 0 ? "+" : ""}${item.efeitoSan} SAN`
+                    : ""}
+                </span>
+              )}
               <span
                 className={`ml-2 text-[0.65rem] ${item.usos <= 0 ? "text-stamp" : "text-sepia-dark"}`}
               >
@@ -669,9 +695,13 @@ function InventoryTab({
               {canEdit && item.usos > 0 && (
                 <button
                   type="button"
-                  className="btn btn-dark tap px-2 py-1 text-xs"
-                  onClick={() => usar(i)}
-                  title="Usar (−1 uso)"
+                  className="btn btn-primary tap px-2 py-1 text-xs"
+                  onClick={() => onUsar(i)}
+                  title={
+                    item.efeitoPv || item.efeitoSan
+                      ? "Usar: aplica o efeito e gasta 1 uso"
+                      : "Usar (−1 uso)"
+                  }
                 >
                   Usar
                 </button>
@@ -750,16 +780,35 @@ function InventoryTab({
               onChange={(e) => setUsos(Math.max(0, Number(e.target.value) || 0))}
             />
           </div>
+          <div className="w-20">
+            <label className="label">Efeito PV</label>
+            <input
+              type="number"
+              className="field mt-1"
+              value={efeitoPv}
+              onChange={(e) => setEfeitoPv(Math.trunc(Number(e.target.value) || 0))}
+            />
+          </div>
+          <div className="w-20">
+            <label className="label">Efeito SAN</label>
+            <input
+              type="number"
+              className="field mt-1"
+              value={efeitoSan}
+              onChange={(e) =>
+                setEfeitoSan(Math.trunc(Number(e.target.value) || 0))
+              }
+            />
+          </div>
           <button type="button" className="btn btn-dark tap" onClick={add}>
             + Adicionar
           </button>
         </div>
       )}
-      {combatente && (
-        <p className="typewriter mt-3 text-[0.65rem] text-sepia">
-          Combatente: o dado de dano é rolado 2× e usa o maior.
-        </p>
-      )}
+      <p className="typewriter mt-3 text-[0.65rem] text-sepia">
+        O efeito de PV/SAN é aplicado automaticamente ao usar o item (e gasta 1
+        uso). {combatente ? "Combatente rola o dado de dano 2× e usa o maior." : ""}
+      </p>
     </div>
   );
 }

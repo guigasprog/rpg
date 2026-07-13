@@ -36,6 +36,8 @@ const inventoryItem = z.object({
   dano: dieCode.optional().default(""),
   qtd: z.coerce.number().int().min(1).max(999).default(1),
   usos: z.coerce.number().int().min(0).max(999).default(1),
+  efeitoPv: z.coerce.number().int().min(-99).max(99).default(0),
+  efeitoSan: z.coerce.number().int().min(-99).max(99).default(0),
 });
 
 export const inventoryArray = z.array(inventoryItem).max(100);

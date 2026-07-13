@@ -291,6 +291,8 @@ export async function chooseSubclass(
       dano: sc.item.dano ?? "",
       qtd: sc.item.qtd ?? 1,
       usos: sc.item.usos ?? 1,
+      efeitoPv: sc.item.efeitoPv ?? 0,
+      efeitoSan: sc.item.efeitoSan ?? 0,
     });
   }
 

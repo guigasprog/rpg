@@ -12,6 +12,8 @@ export interface InventoryItem {
   dano: string; // "" = item sem dano
   qtd: number;
   usos: number;
+  efeitoPv: number; // aplicado ao PV ao usar (pode ser negativo)
+  efeitoSan: number; // aplicado à Sanidade ao usar
 }
 
 // DTO seguro enviado ao cliente. Campos sensíveis só existem quando permitidos.
@@ -70,13 +72,16 @@ export function parseInventory(raw: string | null): InventoryItem[] {
     return parsed
       .map((x): InventoryItem | null => {
         // Compatibilidade: formato antigo (string) ou sem qtd/usos → padrão 1.
-        if (typeof x === "string") return { nome: x, dano: "", qtd: 1, usos: 1 };
+        if (typeof x === "string")
+          return { nome: x, dano: "", qtd: 1, usos: 1, efeitoPv: 0, efeitoSan: 0 };
         if (x && typeof x === "object" && typeof x.nome === "string") {
           return {
             nome: x.nome,
             dano: typeof x.dano === "string" ? x.dano : "",
             qtd: num(x.qtd, 1),
             usos: num(x.usos, 1),
+            efeitoPv: num(x.efeitoPv, 0),
+            efeitoSan: num(x.efeitoSan, 0),
           };
         }
         return null;

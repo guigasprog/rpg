@@ -81,6 +81,8 @@ export interface SubclassItem {
   dano?: string; // "" = sem dano
   qtd?: number; // padrão 1
   usos?: number; // padrão 1
+  efeitoPv?: number; // aplicado ao PV ao usar
+  efeitoSan?: number; // aplicado à Sanidade ao usar
 }
 
 export interface SubclassInfo {
@@ -105,7 +107,7 @@ export const SUBCLASSES: Record<string, SubclassInfo[]> = {
   ],
   ESPECIALISTA: [
     { key: "detetive", classe: "ESPECIALISTA", label: "Detetive", descricao: "A cena do crime fala com quem sabe ouvir.", sanPorNivel: 1, habilidades: ["Dedução: Falha vira Parcial em INV 1×/cena.", "Reconstrói a cena de relance."], item: { nome: "Lupa & Distintivo", dano: "", qtd: 1, usos: 99 } },
-    { key: "medico", classe: "ESPECIALISTA", label: "Médico", descricao: "Segura a vida com as próprias mãos.", pvPorNivel: 1, sanPorNivel: 1, habilidades: ["Estabiliza um personagem em PV negativo.", "Diagnostica males e venenos."], item: { nome: "Kit Médico (+4 PV)", dano: "", qtd: 1, usos: 3 } },
+    { key: "medico", classe: "ESPECIALISTA", label: "Médico", descricao: "Segura a vida com as próprias mãos.", pvPorNivel: 1, sanPorNivel: 1, habilidades: ["Estabiliza um personagem em PV negativo.", "Diagnostica males e venenos."], item: { nome: "Kit Médico", dano: "", qtd: 1, usos: 3, efeitoPv: 4 } },
     { key: "policial", classe: "ESPECIALISTA", label: "Policial", descricao: "A lei — ou o que sobrou dela.", pvPorNivel: 2, habilidades: ["Autoridade legal impõe respeito.", "Algema, prende e interroga."], item: { nome: "Revólver .38", dano: "2d6", qtd: 1, usos: 6 } },
     { key: "tecnico", classe: "ESPECIALISTA", label: "Técnico", descricao: "Toda fechadura e todo circuito têm um jeito.", sanPorNivel: 1, habilidades: ["Abre fechaduras e burla alarmes.", "Conserta e improvisa aparelhos."], item: { nome: "Kit de Gazuas & Ferramentas", dano: "", qtd: 1, usos: 99 } },
     { key: "reporter", classe: "ESPECIALISTA", label: "Repórter", descricao: "Fareja a história antes de todo mundo.", sanPorNivel: 1, habilidades: ["Sempre tem um contato a um telefonema.", "Registra provas no calor do momento."], item: { nome: "Câmera 35mm", dano: "", qtd: 1, usos: 24 } },
@@ -115,7 +117,7 @@ export const SUBCLASSES: Record<string, SubclassInfo[]> = {
     { key: "vidente", classe: "OCULTISTA", label: "Vidente", descricao: "Enxerga o fio antes de ser cortado.", sanPorNivel: 1, habilidades: ["Presságio: 1 pergunta ao Irreal por sessão.", "Sente a morte se aproximando."], item: { nome: "Cartas de Tarô", dano: "", qtd: 1, usos: 99 } },
     { key: "conjurador", classe: "OCULTISTA", label: "Conjurador", descricao: "Conhece o Verbo — e o preço.", habilidades: ["O Verbo: gasta SAN por um efeito sobrenatural.", "Traça círculos de proteção."], item: { nome: "Giz Ritual", dano: "", qtd: 1, usos: 5 } },
     { key: "pactuario", classe: "OCULTISTA", label: "Pactuário", descricao: "Poder emprestado tem juros.", pvPorNivel: 2, sanPorNivel: -1, habilidades: ["Invoca o poder da entidade patrona.", "A dívida sempre cobra — no pior momento."], item: { nome: "Selo do Pacto", dano: "", qtd: 1, usos: 99 } },
-    { key: "exorcista", classe: "OCULTISTA", label: "Exorcista", descricao: "Empurra o Irreal de volta.", sanPorNivel: 1, habilidades: ["Bane entidades menores.", "Reconhece possessão à primeira vista."], item: { nome: "Água Benta", dano: "", qtd: 3, usos: 1 } },
+    { key: "exorcista", classe: "OCULTISTA", label: "Exorcista", descricao: "Empurra o Irreal de volta.", sanPorNivel: 1, habilidades: ["Bane entidades menores.", "Reconhece possessão à primeira vista."], item: { nome: "Água Benta", dano: "", qtd: 3, usos: 1, efeitoSan: 3 } },
     { key: "necromante", classe: "OCULTISTA", label: "Necromante", descricao: "A carne ainda tem o que dizer.", habilidades: ["Fala com os mortos (custo de SAN).", "A matéria morta obedece por um tempo."], item: { nome: "Faca Ritual", dano: "1d6", qtd: 1, usos: 99 } },
     { key: "profeta", classe: "OCULTISTA", label: "Profeta do Fim", descricao: "Viu o que vem — e não dá pra desver.", habilidades: ["Visões do que está por vir.", "Fanáticos passam a segui-lo."], item: { nome: "Panfletos do Juízo", dano: "", qtd: 10, usos: 1 } },
   ],
