@@ -34,6 +34,8 @@ const dieCode = z
 const inventoryItem = z.object({
   nome: z.string().trim().min(1).max(200),
   dano: dieCode.optional().default(""),
+  qtd: z.coerce.number().int().min(1).max(999).default(1),
+  usos: z.coerce.number().int().min(0).max(999).default(1),
 });
 
 export const inventoryArray = z.array(inventoryItem).max(100);

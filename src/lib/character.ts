@@ -10,6 +10,8 @@ export interface Viewer {
 export interface InventoryItem {
   nome: string;
   dano: string; // "" = item sem dano
+  qtd: number;
+  usos: number;
 }
 
 // DTO seguro enviado ao cliente. Campos sensíveis só existem quando permitidos.
@@ -63,12 +65,19 @@ export function parseInventory(raw: string | null): InventoryItem[] {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
+    const num = (v: unknown, def: number) =>
+      typeof v === "number" && Number.isFinite(v) ? v : def;
     return parsed
       .map((x): InventoryItem | null => {
-        // Compatibilidade com o formato antigo (array de strings).
-        if (typeof x === "string") return { nome: x, dano: "" };
+        // Compatibilidade: formato antigo (string) ou sem qtd/usos → padrão 1.
+        if (typeof x === "string") return { nome: x, dano: "", qtd: 1, usos: 1 };
         if (x && typeof x === "object" && typeof x.nome === "string") {
-          return { nome: x.nome, dano: typeof x.dano === "string" ? x.dano : "" };
+          return {
+            nome: x.nome,
+            dano: typeof x.dano === "string" ? x.dano : "",
+            qtd: num(x.qtd, 1),
+            usos: num(x.usos, 1),
+          };
         }
         return null;
       })

@@ -69,7 +69,19 @@ export function classLabel(classe: string): string {
   return CLASS_INFO[classe]?.label ?? classe;
 }
 
-// ---------------- Subclasses (liberadas pelo GM) ----------------
+// ---------------- Subclasses ----------------
+// Destravam no NÍVEL 5: o jogador escolhe o rumo dentro da própria classe.
+// Cada subclasse dá deltas de PV/SAN, habilidades e um ITEM DE ASSINATURA
+// (adicionado ao inventário com quantidade/usos).
+
+export const SUBCLASS_LEVEL = 5;
+
+export interface SubclassItem {
+  nome: string;
+  dano?: string; // "" = sem dano
+  qtd?: number; // padrão 1
+  usos?: number; // padrão 1
+}
 
 export interface SubclassInfo {
   key: string;
@@ -79,32 +91,33 @@ export interface SubclassInfo {
   pvPorNivel?: number; // delta somado ao ganho da classe
   sanPorNivel?: number;
   habilidades: string[];
+  item?: SubclassItem; // item de assinatura ao escolher
 }
 
 export const SUBCLASSES: Record<string, SubclassInfo[]> = {
   COMBATENTE: [
-    { key: "brigao", classe: "COMBATENTE", label: "Brigão", descricao: "Punho, cotovelo e cabeçada.", pvPorNivel: 1, habilidades: ["+1 no dano corpo a corpo.", "Não sente o primeiro soco da briga."] },
-    { key: "atirador", classe: "COMBATENTE", label: "Atirador", descricao: "Respira, mira, aperta.", habilidades: ["Rerrola o resultado 1 em armas de fogo.", "Tiro certeiro: +2 no acerto à distância se mirar."] },
-    { key: "guardiao", classe: "COMBATENTE", label: "Guardião", descricao: "O muro entre o grupo e o fim.", pvPorNivel: 2, habilidades: ["Reduz 1 de todo dano recebido.", "Intercepta um golpe destinado a um aliado adjacente."] },
-    { key: "carrasco", classe: "COMBATENTE", label: "Carrasco", descricao: "Termina o que começa.", pvPorNivel: 1, habilidades: ["Executa alvo abaixo de 1/4 do PV.", "Sua presença com a lâmina intimida."] },
-    { key: "veterano", classe: "COMBATENTE", label: "Veterano de Guerra", descricao: "Já viu pior. Bem pior.", pvPorNivel: 1, sanPorNivel: 1, habilidades: ["Sangue-frio sob fogo (rerrola medo).", "Conhece e improvisa com qualquer arma."] },
-    { key: "capanga", classe: "COMBATENTE", label: "Capanga", descricao: "Luta sujo porque funciona.", pvPorNivel: 1, habilidades: ["Golpe baixo: vantagem 1×/cena.", "Aguenta apanhar calado."] },
+    { key: "brigao", classe: "COMBATENTE", label: "Brigão", descricao: "Punho, cotovelo e cabeçada.", pvPorNivel: 2, habilidades: ["+1 no dano corpo a corpo.", "Não sente o primeiro soco da briga."], item: { nome: "Soqueira de Ferro", dano: "1d4", qtd: 1, usos: 99 } },
+    { key: "atirador", classe: "COMBATENTE", label: "Atirador", descricao: "Respira, mira, aperta.", habilidades: ["Rerrola o resultado 1 em armas de fogo.", "Tiro certeiro: +2 no acerto à distância se mirar."], item: { nome: "Rifle de Ferrolho", dano: "2d6", qtd: 1, usos: 5 } },
+    { key: "guardiao", classe: "COMBATENTE", label: "Guardião", descricao: "O muro entre o grupo e o fim.", pvPorNivel: 3, habilidades: ["Reduz 1 de todo dano recebido.", "Intercepta um golpe destinado a um aliado adjacente."], item: { nome: "Escudo de Aço", dano: "", qtd: 1, usos: 99 } },
+    { key: "carrasco", classe: "COMBATENTE", label: "Carrasco", descricao: "Termina o que começa.", pvPorNivel: 1, habilidades: ["Executa alvo abaixo de 1/4 do PV.", "Sua presença com a lâmina intimida."], item: { nome: "Machadinha", dano: "1d8", qtd: 1, usos: 99 } },
+    { key: "veterano", classe: "COMBATENTE", label: "Veterano de Guerra", descricao: "Já viu pior. Bem pior.", pvPorNivel: 1, sanPorNivel: 1, habilidades: ["Sangue-frio sob fogo (rerrola medo).", "Conhece e improvisa com qualquer arma."], item: { nome: "Granada", dano: "2d6", qtd: 2, usos: 1 } },
+    { key: "capanga", classe: "COMBATENTE", label: "Capanga", descricao: "Luta sujo porque funciona.", pvPorNivel: 1, habilidades: ["Golpe baixo: vantagem 1×/cena.", "Aguenta apanhar calado."], item: { nome: "Cassetete", dano: "1d6", qtd: 1, usos: 99 } },
   ],
   ESPECIALISTA: [
-    { key: "investigador", classe: "ESPECIALISTA", label: "Investigador", descricao: "A cena fala com quem sabe ouvir.", habilidades: ["Dedução: Falha vira Parcial em INV 1×/cena.", "Reconstrói a cena do crime de relance."] },
-    { key: "negociador", classe: "ESPECIALISTA", label: "Negociador", descricao: "Toda porta tem uma senha falada.", sanPorNivel: 1, habilidades: ["Vantagem em interações sociais tensas.", "Sempre tem um contato a um telefonema."] },
-    { key: "erudito", classe: "ESPECIALISTA", label: "Erudito", descricao: "Enterrado em livros que ninguém lê.", sanPorNivel: 1, habilidades: ["'Já li sobre isso' 1×/sessão.", "Decifra idiomas mortos e cifras."] },
-    { key: "legista", classe: "ESPECIALISTA", label: "Legista", descricao: "Os mortos não mentem para você.", habilidades: ["Estabiliza um personagem em PV negativo.", "Autópsia revela a verdadeira causa."] },
-    { key: "infiltrador", classe: "ESPECIALISTA", label: "Infiltrador", descricao: "Estava lá o tempo todo. Ninguém viu.", pvPorNivel: 1, habilidades: ["Disfarce impecável sob pressão.", "Abre qualquer fechadura comum."] },
-    { key: "cetico", classe: "ESPECIALISTA", label: "Cético", descricao: "Deve ter uma explicação. Deve.", habilidades: ["Resiste ao medo (rerrola SAN 1×/cena).", "Explica o inexplicável… quase sempre."] },
+    { key: "detetive", classe: "ESPECIALISTA", label: "Detetive", descricao: "A cena do crime fala com quem sabe ouvir.", sanPorNivel: 1, habilidades: ["Dedução: Falha vira Parcial em INV 1×/cena.", "Reconstrói a cena de relance."], item: { nome: "Lupa & Distintivo", dano: "", qtd: 1, usos: 99 } },
+    { key: "medico", classe: "ESPECIALISTA", label: "Médico", descricao: "Segura a vida com as próprias mãos.", pvPorNivel: 1, sanPorNivel: 1, habilidades: ["Estabiliza um personagem em PV negativo.", "Diagnostica males e venenos."], item: { nome: "Kit Médico (+4 PV)", dano: "", qtd: 1, usos: 3 } },
+    { key: "policial", classe: "ESPECIALISTA", label: "Policial", descricao: "A lei — ou o que sobrou dela.", pvPorNivel: 2, habilidades: ["Autoridade legal impõe respeito.", "Algema, prende e interroga."], item: { nome: "Revólver .38", dano: "2d6", qtd: 1, usos: 6 } },
+    { key: "tecnico", classe: "ESPECIALISTA", label: "Técnico", descricao: "Toda fechadura e todo circuito têm um jeito.", sanPorNivel: 1, habilidades: ["Abre fechaduras e burla alarmes.", "Conserta e improvisa aparelhos."], item: { nome: "Kit de Gazuas & Ferramentas", dano: "", qtd: 1, usos: 99 } },
+    { key: "reporter", classe: "ESPECIALISTA", label: "Repórter", descricao: "Fareja a história antes de todo mundo.", sanPorNivel: 1, habilidades: ["Sempre tem um contato a um telefonema.", "Registra provas no calor do momento."], item: { nome: "Câmera 35mm", dano: "", qtd: 1, usos: 24 } },
+    { key: "erudito", classe: "ESPECIALISTA", label: "Erudito", descricao: "Enterrado em livros que ninguém mais lê.", sanPorNivel: 1, habilidades: ["'Já li sobre isso' 1×/sessão.", "Decifra idiomas mortos e cifras."], item: { nome: "Grimório de Bolso", dano: "", qtd: 1, usos: 99 } },
   ],
   OCULTISTA: [
-    { key: "vidente", classe: "OCULTISTA", label: "Vidente", descricao: "Enxerga o fio antes de ser cortado.", sanPorNivel: 1, habilidades: ["Presságio: 1 pergunta ao Irreal por sessão.", "Sente a morte se aproximando."] },
-    { key: "conjurador", classe: "OCULTISTA", label: "Conjurador", descricao: "Conhece o Verbo — e o preço.", habilidades: ["O Verbo: gasta SAN por um efeito sobrenatural.", "Traça círculos de proteção."] },
-    { key: "pactuario", classe: "OCULTISTA", label: "Pactuário", descricao: "Poder emprestado tem juros.", pvPorNivel: 2, sanPorNivel: -1, habilidades: ["Invoca o poder da entidade patrona.", "A dívida sempre cobra — no pior momento."] },
-    { key: "exorcista", classe: "OCULTISTA", label: "Exorcista", descricao: "Empurra o Irreal de volta.", sanPorNivel: 1, habilidades: ["Bane entidades menores.", "Reconhece possessão à primeira vista."] },
-    { key: "necromante", classe: "OCULTISTA", label: "Necromante", descricao: "A carne ainda tem o que dizer.", habilidades: ["Fala com os mortos (custo de SAN).", "A matéria morta obedece por um tempo."] },
-    { key: "profeta", classe: "OCULTISTA", label: "Profeta do Fim", descricao: "Viu o que vem — e não dá pra desver.", habilidades: ["Visões do que está por vir.", "Fanáticos passam a segui-lo."] },
+    { key: "vidente", classe: "OCULTISTA", label: "Vidente", descricao: "Enxerga o fio antes de ser cortado.", sanPorNivel: 1, habilidades: ["Presságio: 1 pergunta ao Irreal por sessão.", "Sente a morte se aproximando."], item: { nome: "Cartas de Tarô", dano: "", qtd: 1, usos: 99 } },
+    { key: "conjurador", classe: "OCULTISTA", label: "Conjurador", descricao: "Conhece o Verbo — e o preço.", habilidades: ["O Verbo: gasta SAN por um efeito sobrenatural.", "Traça círculos de proteção."], item: { nome: "Giz Ritual", dano: "", qtd: 1, usos: 5 } },
+    { key: "pactuario", classe: "OCULTISTA", label: "Pactuário", descricao: "Poder emprestado tem juros.", pvPorNivel: 2, sanPorNivel: -1, habilidades: ["Invoca o poder da entidade patrona.", "A dívida sempre cobra — no pior momento."], item: { nome: "Selo do Pacto", dano: "", qtd: 1, usos: 99 } },
+    { key: "exorcista", classe: "OCULTISTA", label: "Exorcista", descricao: "Empurra o Irreal de volta.", sanPorNivel: 1, habilidades: ["Bane entidades menores.", "Reconhece possessão à primeira vista."], item: { nome: "Água Benta", dano: "", qtd: 3, usos: 1 } },
+    { key: "necromante", classe: "OCULTISTA", label: "Necromante", descricao: "A carne ainda tem o que dizer.", habilidades: ["Fala com os mortos (custo de SAN).", "A matéria morta obedece por um tempo."], item: { nome: "Faca Ritual", dano: "1d6", qtd: 1, usos: 99 } },
+    { key: "profeta", classe: "OCULTISTA", label: "Profeta do Fim", descricao: "Viu o que vem — e não dá pra desver.", habilidades: ["Visões do que está por vir.", "Fanáticos passam a segui-lo."], item: { nome: "Panfletos do Juízo", dano: "", qtd: 10, usos: 1 } },
   ],
 };
 

@@ -12,7 +12,9 @@ import {
   MAX_LEVEL,
   OCCULTISM_MAX_LEVEL,
   PROPOSTA,
+  SUBCLASS_LEVEL,
 } from "@/lib/game";
+import { parseInventory } from "@/lib/character";
 import {
   createCharacterSchema,
   createPlayerSchema,
@@ -248,6 +250,67 @@ export async function setCharacterLevel(
       nivel: clamped,
       pvMax: computeMaxPv(character.attrCombate, character.classe, clamped),
       sanMax: computeMaxSan(character.attrMente, character.classe, clamped),
+    },
+  });
+
+  revalidateCharacter(id);
+  return { ok: true, id };
+}
+
+// Jogador (dono) escolhe a subclasse ao atingir o nível 5. GM pode trocar.
+export async function chooseSubclass(
+  id: string,
+  subclasseKey: string,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+
+  const character = await prisma.character.findUnique({ where: { id } });
+  if (!character) return fail("Personagem não encontrado.");
+
+  const isOwner = character.ownerId === viewer.id;
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isOwner && !isMaster) return fail("Sem permissão.");
+
+  const sc = getSubclass(subclasseKey);
+  if (!sc || sc.classe !== character.classe) {
+    return fail("Essa subclasse não pertence à sua classe.");
+  }
+  if (character.nivel < SUBCLASS_LEVEL) {
+    return fail(`Subclasses abrem no nível ${SUBCLASS_LEVEL}.`);
+  }
+  if (!isMaster && character.subclasse) {
+    return fail("Você já seguiu um rumo. Fale com o Mestre para mudar.");
+  }
+
+  // Concede o item de assinatura (sem duplicar).
+  const inv = parseInventory(character.inventory);
+  if (sc.item && !inv.some((i) => i.nome === sc.item!.nome)) {
+    inv.push({
+      nome: sc.item.nome,
+      dano: sc.item.dano ?? "",
+      qtd: sc.item.qtd ?? 1,
+      usos: sc.item.usos ?? 1,
+    });
+  }
+
+  await prisma.character.update({
+    where: { id },
+    data: {
+      subclasse: subclasseKey,
+      inventory: JSON.stringify(inv),
+      pvMax: computeMaxPv(
+        character.attrCombate,
+        character.classe,
+        character.nivel,
+        subclasseKey,
+      ),
+      sanMax: computeMaxSan(
+        character.attrMente,
+        character.classe,
+        character.nivel,
+        subclasseKey,
+      ),
     },
   });
 

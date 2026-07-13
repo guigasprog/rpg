@@ -102,7 +102,10 @@ export function MasterEditForm({ character }: Props) {
 
   function addItem() {
     if (!newItem.trim()) return;
-    setInventory((p) => [...p, { nome: newItem.trim(), dano: newDano }]);
+    setInventory((p) => [
+      ...p,
+      { nome: newItem.trim(), dano: newDano, qtd: 1, usos: 1 },
+    ]);
     setNewItem("");
     setNewDano("");
   }
@@ -311,7 +314,10 @@ export function MasterEditForm({ character }: Props) {
             {inventory.map((it, i) => (
               <li key={i} className="flex items-center justify-between border-b border-dashed border-sepia/30 py-1">
                 <span className="typewriter text-sm text-sepia-ink">
-                  — {it.nome}{it.dano ? <span className="ml-2 text-xs text-stamp">({it.dano})</span> : null}
+                  — {it.nome}
+                  {it.qtd > 1 ? <span className="text-sepia"> ×{it.qtd}</span> : null}
+                  {it.dano ? <span className="ml-2 text-xs text-stamp">({it.dano})</span> : null}
+                  <span className="ml-2 text-[0.65rem] text-sepia-dark">usos: {it.usos}</span>
                 </span>
                 <button type="button" className="text-stamp" onClick={() => setInventory((p) => p.filter((_, j) => j !== i))}>✕</button>
               </li>

@@ -3,7 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CharacterDTO, InventoryItem } from "@/lib/character";
-import { updateCharacterAsPlayer, respondOccultOffer } from "@/lib/actions";
+import {
+  chooseSubclass,
+  respondOccultOffer,
+  updateCharacterAsPlayer,
+} from "@/lib/actions";
 import {
   ATTRIBUTES,
   BASE_PV,
@@ -11,11 +15,13 @@ import {
   CLASS_INFO,
   OCCULTISM_LEVELS,
   PROPOSTA,
+  SUBCLASS_LEVEL,
   WEAPON_DICE,
   classLabel,
   getSubclass,
   levelLabel,
   subclassLabel,
+  subclassesFor,
   unlockedMilestones,
 } from "@/lib/game";
 import { ResourceMeter } from "@/components/ResourceMeter";
@@ -52,8 +58,6 @@ export function CharacterSheet({ character }: Props) {
   const [inventory, setInventory] = useState<InventoryItem[]>(
     character.inventory,
   );
-  const [newItem, setNewItem] = useState("");
-  const [newDano, setNewDano] = useState("");
   const [pvAtual, setPvAtual] = useState(character.pvAtual);
   const [sanAtual, setSanAtual] = useState(character.sanAtual);
 
@@ -104,6 +108,9 @@ export function CharacterSheet({ character }: Props) {
     character.classe !== "OCULTISTA";
   // Aba com campos editáveis pelo jogador → mostra a barra fixa de salvar.
   const showSaveBar = canEdit && tab !== "attrs" && tab !== "occultism";
+  // Nível 5+ sem subclasse → o jogador escolhe o rumo.
+  const showSubclass =
+    canEdit && character.nivel >= SUBCLASS_LEVEL && !character.subclasse;
 
   return (
     <div
@@ -132,6 +139,7 @@ export function CharacterSheet({ character }: Props) {
       </div>
 
       {showProposta && <PropostaPrompt character={character} />}
+      {showSubclass && <SubclassPrompt character={character} />}
 
       {/* Abas do fichário (roláveis no mobile) */}
       <div className="flex flex-nowrap items-end gap-1 overflow-x-auto sm:flex-wrap">
@@ -297,10 +305,6 @@ export function CharacterSheet({ character }: Props) {
             canEdit={canEdit}
             combate={character.attrCombate}
             combatente={combatente}
-            newItem={newItem}
-            setNewItem={setNewItem}
-            newDano={newDano}
-            setNewDano={setNewDano}
           />
         )}
 
@@ -399,6 +403,60 @@ function PropostaPrompt({ character }: { character: CharacterDTO }) {
         Aceitar torna você Ocultista e abre o que estava selado.
       </p>
       {error && <p className="typewriter mt-1 text-xs text-stamp">{error}</p>}
+    </div>
+  );
+}
+
+function SubclassPrompt({ character }: { character: CharacterDTO }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const opcoes = subclassesFor(character.classe);
+
+  function escolher(key: string) {
+    setError(null);
+    startTransition(async () => {
+      const res = await chooseSubclass(character.id, key);
+      if (!res.ok) {
+        setError(res.error ?? "Falha.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="mb-4 rounded-md border border-stamp/50 bg-ink-soft p-4">
+      <h3 className="display mb-1 text-sm text-stamp-bright">
+        Nível {character.nivel}: escolha seu rumo
+      </h3>
+      <p className="typewriter mb-3 text-xs text-paper/70">
+        Uma especialização de {classLabel(character.classe)} — novos efeitos,
+        valores e um item de assinatura. A escolha é sua (o Mestre pode mudar
+        depois).
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {opcoes.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => escolher(s.key)}
+            disabled={pending}
+            className="rounded border border-sepia/40 bg-black/20 p-2.5 text-left transition-colors hover:border-stamp disabled:opacity-50"
+          >
+            <div className="display text-sm text-paper-light">{s.label}</div>
+            <div className="typewriter text-[0.7rem] text-paper/60">
+              {s.descricao}
+            </div>
+            {s.item && (
+              <div className="typewriter mt-1 text-[0.65rem] text-stamp">
+                + {s.item.nome}
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+      {error && <p className="typewriter mt-2 text-xs text-stamp">{error}</p>}
     </div>
   );
 }
@@ -553,26 +611,32 @@ function InventoryTab({
   canEdit,
   combate,
   combatente,
-  newItem,
-  setNewItem,
-  newDano,
-  setNewDano,
 }: {
   inventory: InventoryItem[];
   setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   canEdit: boolean;
   combate: number;
   combatente: boolean;
-  newItem: string;
-  setNewItem: (v: string) => void;
-  newDano: string;
-  setNewDano: (v: string) => void;
 }) {
+  const [nome, setNome] = useState("");
+  const [dano, setDano] = useState("");
+  const [qtd, setQtd] = useState(1);
+  const [usos, setUsos] = useState(1);
+
   function add() {
-    if (!newItem.trim()) return;
-    setInventory((p) => [...p, { nome: newItem.trim(), dano: newDano }]);
-    setNewItem("");
-    setNewDano("");
+    if (!nome.trim()) return;
+    setInventory((p) => [...p, { nome: nome.trim(), dano, qtd, usos }]);
+    setNome("");
+    setDano("");
+    setQtd(1);
+    setUsos(1);
+  }
+  function usar(i: number) {
+    setInventory((prev) =>
+      prev.map((it, j) =>
+        j === i ? { ...it, usos: Math.max(0, it.usos - 1) } : it,
+      ),
+    );
   }
 
   return (
@@ -589,11 +653,29 @@ function InventoryTab({
           >
             <span className="typewriter text-sepia-ink">
               — {item.nome}
+              {item.qtd > 1 ? (
+                <span className="text-sepia"> ×{item.qtd}</span>
+              ) : null}
               {item.dano ? (
                 <span className="ml-2 text-xs text-stamp">({item.dano})</span>
               ) : null}
+              <span
+                className={`ml-2 text-[0.65rem] ${item.usos <= 0 ? "text-stamp" : "text-sepia-dark"}`}
+              >
+                usos: {item.usos}
+              </span>
             </span>
             <div className="flex items-center gap-2">
+              {canEdit && item.usos > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-dark tap px-2 py-1 text-xs"
+                  onClick={() => usar(i)}
+                  title="Usar (−1 uso)"
+                >
+                  Usar
+                </button>
+              )}
               {item.dano ? (
                 <WeaponRoller
                   dieCode={item.dano}
@@ -623,8 +705,8 @@ function InventoryTab({
             <label className="label">Item</label>
             <input
               className="field mt-1"
-              value={newItem}
-              onChange={(e) => setNewItem(e.target.value)}
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
               placeholder="Ex.: Revólver .38"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -638,8 +720,8 @@ function InventoryTab({
             <label className="label">Dano</label>
             <select
               className="field mt-1"
-              value={newDano}
-              onChange={(e) => setNewDano(e.target.value)}
+              value={dano}
+              onChange={(e) => setDano(e.target.value)}
             >
               {WEAPON_DICE.map((d) => (
                 <option key={d} value={d}>
@@ -647,6 +729,26 @@ function InventoryTab({
                 </option>
               ))}
             </select>
+          </div>
+          <div className="w-20">
+            <label className="label">Qtd</label>
+            <input
+              type="number"
+              min={1}
+              className="field mt-1"
+              value={qtd}
+              onChange={(e) => setQtd(Math.max(1, Number(e.target.value) || 1))}
+            />
+          </div>
+          <div className="w-20">
+            <label className="label">Usos</label>
+            <input
+              type="number"
+              min={0}
+              className="field mt-1"
+              value={usos}
+              onChange={(e) => setUsos(Math.max(0, Number(e.target.value) || 0))}
+            />
           </div>
           <button type="button" className="btn btn-dark tap" onClick={add}>
             + Adicionar
