@@ -81,16 +81,37 @@ export function CharacterSheet({ character }: Props) {
     router.refresh();
   }
 
-  // Usar item: aplica o efeito (PV/SAN) e gasta 1 uso. Salve para persistir.
-  function usarItem(i: number) {
+  // Usar item: aplica o efeito (PV/SAN), gasta 1 uso e SALVA automaticamente.
+  async function usarItem(i: number) {
     const it = inventory[i];
-    if (!it || it.usos <= 0) return;
-    if (it.efeitoPv) setPvAtual((v) => v + it.efeitoPv);
-    if (it.efeitoSan) setSanAtual((v) => v + it.efeitoSan);
-    setInventory((prev) =>
-      prev.map((x, j) => (j === i ? { ...x, usos: Math.max(0, x.usos - 1) } : x)),
+    if (!it || it.usos <= 0 || saving) return;
+    const novoInv = inventory.map((x, j) =>
+      j === i ? { ...x, usos: Math.max(0, x.usos - 1) } : x,
     );
-    setMsg('Item usado — não esqueça de "Salvar".');
+    const novoPv = pvAtual + (it.efeitoPv || 0);
+    const novoSan = sanAtual + (it.efeitoSan || 0);
+    // Atualiza a UI na hora.
+    setInventory(novoInv);
+    setPvAtual(novoPv);
+    setSanAtual(novoSan);
+    // Persiste com os valores calculados (evita estado defasado).
+    setSaving(true);
+    setMsg(null);
+    const res = await updateCharacterAsPlayer(character.id, {
+      appearance,
+      portraitUrl,
+      playerNotes,
+      inventory: novoInv,
+      pvAtual: novoPv,
+      sanAtual: novoSan,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setMsg(res.error ?? "Falha ao usar o item.");
+      return;
+    }
+    setMsg(`${it.nome} usado.`);
+    router.refresh();
   }
 
   const combatente = character.classe === "COMBATENTE";
@@ -806,8 +827,8 @@ function InventoryTab({
         </div>
       )}
       <p className="typewriter mt-3 text-[0.65rem] text-sepia">
-        O efeito de PV/SAN é aplicado automaticamente ao usar o item (e gasta 1
-        uso). {combatente ? "Combatente rola o dado de dano 2× e usa o maior." : ""}
+        Ao clicar em Usar, o efeito de PV/SAN é aplicado, gasta 1 uso e salva
+        automaticamente. {combatente ? "Combatente rola o dado de dano 2× e usa o maior." : ""}
       </p>
     </div>
   );
