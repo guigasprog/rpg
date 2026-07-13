@@ -259,6 +259,11 @@ export function CharacterSheet({ character }: Props) {
                   attrLabia: character.attrLabia,
                   attrMente: character.attrMente,
                 }}
+                focos={
+                  character.classe === "ESPECIALISTA"
+                    ? character.especialistaFocos
+                    : []
+                }
               />
             </div>
             {milestones.length > 0 && (

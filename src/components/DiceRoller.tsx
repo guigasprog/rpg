@@ -12,6 +12,7 @@ interface Props {
     attrLabia: number;
     attrMente: number;
   };
+  focos?: string[]; // Especialista: atributos com rerrolagem 1×/cena
 }
 
 const OUTCOME_COLOR: Record<string, string> = {
@@ -20,36 +21,71 @@ const OUTCOME_COLOR: Record<string, string> = {
   FALHA: "text-stamp",
 };
 
-export function DiceRoller({ attrs }: Props) {
+function fmt(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
+
+export function DiceRoller({ attrs, focos = [] }: Props) {
   const [result, setResult] = useState<RollResult | null>(null);
   const [used, setUsed] = useState<string>("");
+  const [lastKey, setLastKey] = useState<string>("");
+  const [rerrolagemOk, setRerrolagemOk] = useState(true);
 
   function doRoll(key: string, label: string) {
     const mod = attrs[key as keyof typeof attrs] ?? 0;
     setResult(roll2d6(mod));
     setUsed(label);
+    setLastKey(key);
   }
+
+  function rerolar() {
+    if (!rerrolagemOk) return;
+    const mod = attrs[lastKey as keyof typeof attrs] ?? 0;
+    setResult(roll2d6(mod));
+    setRerrolagemOk(false);
+  }
+
+  const temFoco = focos.length > 0;
+  const podeRerolar = temFoco && focos.includes(lastKey) && rerrolagemOk && !!result;
 
   return (
     <div className="rounded border border-sepia/30 bg-black/5 p-4">
-      <h3 className="display mb-2 flex items-center gap-2 text-sm text-sepia-ink">
-        <DiceIcon className="text-base" /> Mesa de rolagem (2d6)
-      </h3>
-      <div className="flex flex-wrap gap-2">
-        {ATTRIBUTES.map((a) => (
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="display flex items-center gap-2 text-sm text-sepia-ink">
+          <DiceIcon className="text-base" /> Mesa de rolagem (2d6)
+        </h3>
+        {temFoco && (
           <button
-            key={a.key}
             type="button"
-            className="btn btn-dark px-3 py-1.5 text-xs"
-            onClick={() => doRoll(a.key, a.label)}
+            className="btn btn-dark px-2 py-1 text-[0.65rem]"
+            onClick={() => setRerrolagemOk(true)}
+            title="Restaura a rerrolagem de foco (nova cena)"
           >
-            {a.code} +{attrs[a.key as keyof typeof attrs]}
+            ↻ Nova cena
           </button>
-        ))}
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {ATTRIBUTES.map((a) => {
+          const foco = focos.includes(a.key);
+          return (
+            <button
+              key={a.key}
+              type="button"
+              className={`btn tap px-3 py-1.5 text-xs ${foco ? "btn-primary" : "btn-dark"}`}
+              onClick={() => doRoll(a.key, a.label)}
+              title={foco ? "Atributo de foco (permite rerrolagem)" : undefined}
+            >
+              {foco ? "★ " : ""}
+              {a.code} {fmt(attrs[a.key as keyof typeof attrs])}
+            </button>
+          );
+        })}
       </div>
 
       {result && (
-        <div className="ink-reveal mt-3 flex items-center gap-3 border-t border-sepia/20 pt-3">
+        <div className="ink-reveal mt-3 flex flex-wrap items-center gap-3 border-t border-sepia/20 pt-3">
           <div className="flex gap-1">
             {result.dice.map((d, i) => (
               <span
@@ -61,7 +97,7 @@ export function DiceRoller({ attrs }: Props) {
             ))}
           </div>
           <div className="typewriter text-sm text-sepia-ink">
-            {result.dice[0]} + {result.dice[1]} + {result.modifier} ={" "}
+            {result.dice[0]} + {result.dice[1]} {fmt(result.modifier)} ={" "}
             <strong>{result.total}</strong>
             <span className="text-sepia"> ({used})</span>
           </div>
@@ -71,6 +107,21 @@ export function DiceRoller({ attrs }: Props) {
             {OUTCOME_LABEL[result.outcome]}
           </div>
         </div>
+      )}
+
+      {podeRerolar && (
+        <button
+          type="button"
+          className="btn btn-primary tap mt-3 text-xs"
+          onClick={rerolar}
+        >
+          ↺ Rerrolar (foco) — 1×/cena
+        </button>
+      )}
+      {temFoco && !rerrolagemOk && (
+        <p className="typewriter mt-2 text-[0.65rem] text-sepia">
+          Rerrolagem de foco já usada nesta cena.
+        </p>
       )}
     </div>
   );
