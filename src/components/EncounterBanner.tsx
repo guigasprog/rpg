@@ -18,6 +18,7 @@ const POLL_MS = 5000;
 export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) {
   const [items, setItems] = useState<EncounterItem[]>(initial);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [zoom, setZoom] = useState<string | null>(null); // imagem ampliada
 
   useEffect(() => {
     let ativo = true;
@@ -55,6 +56,7 @@ export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) 
   }
 
   return (
+    <>
     <div
       role="dialog"
       aria-modal="true"
@@ -79,18 +81,27 @@ export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) 
           <div className="flex flex-col items-center gap-4">
             {visiveis.map((it) => (
               <div key={it.id} className="flex flex-col items-center gap-2">
-                <div
-                  className={`rabisco flex items-center justify-center overflow-hidden rounded ${
-                    it.soImagem ? "h-56 w-44" : "h-40 w-32"
-                  }`}
-                >
-                  {it.imagemUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+                {it.imagemUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setZoom(it.imagemUrl)}
+                    title="Ampliar"
+                    className={`rabisco block cursor-zoom-in overflow-hidden rounded ${
+                      it.soImagem ? "h-56 w-44" : "h-40 w-32"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={it.imagemUrl} alt={it.titulo || "aparição"} />
-                  ) : (
+                  </button>
+                ) : (
+                  <div
+                    className={`rabisco flex items-center justify-center overflow-hidden rounded ${
+                      it.soImagem ? "h-56 w-44" : "h-40 w-32"
+                    }`}
+                  >
                     <EldritchSketch className="text-6xl text-stamp/60" />
-                  )}
-                </div>
+                  </div>
+                )}
                 {!it.soImagem && it.titulo && (
                   <span className="glitch display text-center text-2xl text-paper-light">
                     {it.titulo}
@@ -112,5 +123,22 @@ export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) 
         </div>
       </div>
     </div>
+
+    {zoom && (
+      <div
+        role="dialog"
+        aria-label="Imagem ampliada"
+        onClick={() => setZoom(null)}
+        className="fixed inset-0 z-[110] flex cursor-zoom-out items-center justify-center bg-black p-2"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={zoom}
+          alt="ampliada"
+          className="max-h-[96vh] max-w-[96vw] object-contain grayscale"
+        />
+      </div>
+    )}
+    </>
   );
 }
