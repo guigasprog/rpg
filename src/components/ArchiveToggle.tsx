@@ -32,14 +32,14 @@ export function ArchiveToggle({ characterId, arquivado }: Props) {
         type="button"
         onClick={toggle}
         disabled={pending}
-        className={`btn text-xs ${arquivado ? "btn-primary" : "btn-ghost"}`}
+        className={`btn text-xs ${arquivado ? "btn-primary" : "btn-dark"}`}
         title={
           arquivado
             ? "Reativar o dossiê para o jogador"
             : "Arquivar (fica inativo/invisível para o jogador)"
         }
       >
-        {pending ? "..." : arquivado ? "Desarquivar" : "Arquivar"}
+        {pending ? "..." : arquivado ? "📂 Reativar" : "📦 Arquivar"}
       </button>
       {error && <p className="typewriter text-xs text-stamp">{error}</p>}
     </div>

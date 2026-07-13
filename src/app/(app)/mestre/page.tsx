@@ -5,6 +5,7 @@ import { ResourceMeter } from "@/components/ResourceMeter";
 import { OccultismToggle } from "@/components/OccultismToggle";
 import { OnStageToggle } from "@/components/OnStageToggle";
 import { ArchiveToggle } from "@/components/ArchiveToggle";
+import { DeleteCharacterButton } from "@/components/DeleteCharacterButton";
 import { AccountActions } from "@/components/AccountActions";
 import { CreatePlayerForm } from "@/components/CreatePlayerForm";
 import {
@@ -57,7 +58,10 @@ export default async function MasterDashboard() {
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {characters.map((c) => (
-              <div key={c.id} className="paper paper-edge rounded-md p-4">
+              <div
+                key={c.id}
+                className={`paper paper-edge rounded-md p-4 ${c.arquivado ? "opacity-60" : ""}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="display truncate text-lg text-sepia-ink">
@@ -115,6 +119,7 @@ export default async function MasterDashboard() {
                   />
                 </div>
 
+                {/* Ações de jogo */}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <OccultismToggle
                     characterId={c.id}
@@ -124,10 +129,11 @@ export default async function MasterDashboard() {
                     characterId={c.id}
                     mostrarNaMesa={c.mostrarNaMesa}
                   />
-                  <ArchiveToggle
-                    characterId={c.id}
-                    arquivado={c.arquivado}
-                  />
+                </div>
+                {/* Gestão do dossiê */}
+                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-sepia/25 pt-2">
+                  <ArchiveToggle characterId={c.id} arquivado={c.arquivado} />
+                  <DeleteCharacterButton characterId={c.id} nome={c.name} />
                 </div>
               </div>
             ))}
