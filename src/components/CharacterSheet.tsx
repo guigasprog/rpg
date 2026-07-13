@@ -102,9 +102,13 @@ export function CharacterSheet({ character }: Props) {
     canEdit &&
     character.propostaStatus === PROPOSTA.PENDENTE &&
     character.classe !== "OCULTISTA";
+  // Aba com campos editáveis pelo jogador → mostra a barra fixa de salvar.
+  const showSaveBar = canEdit && tab !== "attrs" && tab !== "occultism";
 
   return (
-    <div className={irreal ? "irreal rounded-md" : ""}>
+    <div
+      className={`${irreal ? "irreal rounded-md" : ""} ${showSaveBar ? "pb-24" : ""}`}
+    >
       {/* Cabeçalho: classe + nível */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span
@@ -323,17 +327,21 @@ export function CharacterSheet({ character }: Props) {
         )}
       </div>
 
-      {canEdit && tab !== "attrs" && tab !== "occultism" && (
-        <div className="mt-4 flex items-center gap-3">
-          <button
-            type="button"
-            className="btn btn-primary tap"
-            onClick={save}
-            disabled={saving}
-          >
-            {saving ? "Salvando..." : "Salvar alterações"}
-          </button>
-          {msg && <span className="typewriter text-sm text-sepia">{msg}</span>}
+      {showSaveBar && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-sepia/40 bg-ink/90 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
+            <button
+              type="button"
+              className="btn btn-primary tap"
+              onClick={save}
+              disabled={saving}
+            >
+              {saving ? "Salvando..." : "Salvar alterações"}
+            </button>
+            {msg && (
+              <span className="typewriter text-sm text-sepia">{msg}</span>
+            )}
+          </div>
         </div>
       )}
     </div>

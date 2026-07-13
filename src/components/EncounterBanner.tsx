@@ -68,7 +68,7 @@ export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) 
         onClick={fechar}
       />
 
-      <div className="irreal folder-open relative z-[101] w-full max-w-md rounded-md border border-stamp/60 bg-noir-black/95 p-6 shadow-2xl">
+      <div className="irreal folder-open relative z-[101] max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-md border border-stamp/60 bg-noir-black/95 p-6 shadow-2xl">
         <div className="ink-reveal">
           <div className="mb-3 flex items-center justify-center gap-3 text-stamp">
             <Pentagram className="text-xl" />
@@ -87,7 +87,9 @@ export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) 
                     onClick={() => setZoom(it.imagemUrl)}
                     title="Ampliar"
                     className={`rabisco block cursor-zoom-in overflow-hidden rounded ${
-                      it.soImagem ? "h-56 w-44" : "h-40 w-32"
+                      it.soImagem
+                        ? "h-80 w-64 sm:h-96 sm:w-72"
+                        : "h-64 w-48 sm:h-72 sm:w-56"
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -96,10 +98,12 @@ export function EncounterBanner({ items: initial }: { items: EncounterItem[] }) 
                 ) : (
                   <div
                     className={`rabisco flex items-center justify-center overflow-hidden rounded ${
-                      it.soImagem ? "h-56 w-44" : "h-40 w-32"
+                      it.soImagem
+                        ? "h-80 w-64 sm:h-96 sm:w-72"
+                        : "h-64 w-48 sm:h-72 sm:w-56"
                     }`}
                   >
-                    <EldritchSketch className="text-6xl text-stamp/60" />
+                    <EldritchSketch className="text-7xl text-stamp/60" />
                   </div>
                 )}
                 {!it.soImagem && it.titulo && (
