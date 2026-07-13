@@ -38,6 +38,15 @@ body {
   min-height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden; /* evita rolagem horizontal acidental no mobile */
+}
+
 body {
   background-color: var(--color-noir-black);
   color: var(--color-paper);
@@ -190,8 +199,19 @@ body::before {
   border-radius: 3px;
   color: var(--color-sepia-ink);
   font-family: var(--font-typewriter);
-  padding: 0.5rem 0.65rem;
+  padding: 0.55rem 0.7rem;
   width: 100%;
+  /* 16px evita o auto-zoom do iOS ao focar o campo. */
+  font-size: 16px;
+}
+/* Alvo de toque confortável em selects/inputs no mobile. */
+@media (max-width: 640px) {
+  .field {
+    min-height: 44px;
+  }
+  select.field {
+    min-height: 44px;
+  }
 }
 .field:focus {
   outline: 2px solid var(--color-stamp);
@@ -394,6 +414,7 @@ body::before {
 @media (max-width: 640px) {
   .btn {
     padding: 0.7rem 1rem;
+    min-height: 44px;
   }
   .tap {
     min-height: 44px;

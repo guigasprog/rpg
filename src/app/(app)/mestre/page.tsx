@@ -143,8 +143,8 @@ export default async function MasterDashboard() {
         <h2 className="display mb-3 text-lg text-paper-light">
           Contas ({players.length})
         </h2>
-        <div className="paper paper-edge overflow-hidden rounded-md">
-          <table className="w-full text-left">
+        <div className="paper paper-edge overflow-x-auto rounded-md">
+          <table className="w-full min-w-[32rem] text-left">
             <thead>
               <tr className="border-b border-sepia/30 text-sepia-dark">
                 <th className="label p-3">Usuário</th>

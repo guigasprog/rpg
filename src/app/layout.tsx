@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Special_Elite, Oswald, IM_Fell_English, Caveat } from "next/font/google";
 import "./globals.css";
 
@@ -35,6 +35,12 @@ export const metadata: Metadata = {
   title: "Arquivo Sombrio — Dossiês de Investigação",
   description:
     "Fichário de personagens para a campanha de investigação paranormal (sistema 2d6).",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0b0907",
 };
 
 export default function RootLayout({
