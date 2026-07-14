@@ -61,6 +61,21 @@ const CLASSIFICADOS = [
     corpo:
       "O relojoeiro da Rua 9 parou às 3h47. Curiosamente, todos os relógios da rua pararam no mesmo minuto.",
   },
+  {
+    titulo: "Procura-se",
+    corpo:
+      "Inquilino do 4º andar do Edifício Marlowe. Última vez visto entrando numa porta que o síndico jura não existir. Recompensa discreta.",
+  },
+  {
+    titulo: "Serviços",
+    corpo:
+      "Cubro espelhos, selo portas e removo convidados indesejados. Trabalho limpo, sem perguntas. Deixe recado no Bar do Mouh.",
+  },
+  {
+    titulo: "Nota da Redação",
+    corpo:
+      "A página 7 desta edição foi impressa em branco de propósito. Se você lê algo nela, procure Madame Joana Dark imediatamente.",
+  },
 ];
 
 export const dynamic = "force-dynamic";
@@ -114,6 +129,39 @@ export default async function ManualPage() {
           </p>
         </section>
 
+        {/* Índice */}
+        <nav className="anuncio mb-6 rounded-sm p-4">
+          <h3 className="hand-title mb-2 text-center text-xl text-ink">
+            Nesta edição
+          </h3>
+          <ol className="jornal-body mx-auto grid max-w-2xl grid-cols-1 gap-x-6 gap-y-1 text-[0.82rem] sm:grid-cols-2">
+            {[
+              ["atributos", "Dos Atributos & da Sorte"],
+              ["corpo", "Do Corpo & da Mente"],
+              ["sanidade", "Da Sanidade & do Terror"],
+              ["vocacoes", "Das Vocações"],
+              ["ascensao", "Da Ascensão"],
+              ["dano", "Do Dano & das Armas"],
+              ["inventario", "Do Inventário & dos Apetrechos"],
+              ...(occultRevealed
+                ? ([["proposta", "Da Proposta do Além"]] as const)
+                : []),
+              ["lexico", "Léxico da Divisão"],
+              ["classificados", "Classificados & Boatos"],
+            ].map(([id, label]) => (
+              <li key={id} className="flex items-baseline gap-2">
+                <Manicule className="shrink-0 text-xs align-middle" />
+                <a
+                  href={`#${id}`}
+                  className="border-b border-dotted border-sepia-ink/40 hover:text-stamp"
+                >
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+
         {/* Anúncio de destaque */}
         <section className="anuncio mb-6 rounded-sm p-4">
           <div className="mb-1 flex items-center justify-center gap-3 text-ink">
@@ -137,7 +185,7 @@ export default async function ManualPage() {
         <Rule />
 
         {/* Atributos + rolagem */}
-        <SectionTitle>Dos Atributos &amp; da Sorte</SectionTitle>
+        <SectionTitle id="atributos">Dos Atributos &amp; da Sorte</SectionTitle>
         <div className="jornal-cols">
           <p className="jornal-body">
             Quatro medidas definem uma pessoa: <strong>Investigar (INV)</strong>,{" "}
@@ -159,7 +207,7 @@ export default async function ManualPage() {
         <Rule />
 
         {/* Recursos */}
-        <SectionTitle>Do Corpo &amp; da Mente</SectionTitle>
+        <SectionTitle id="corpo">Do Corpo &amp; da Mente</SectionTitle>
         <div className="jornal-cols">
           <p className="jornal-body">
             A carne mede-se em <strong>Pontos de Vida</strong> e a lucidez em{" "}
@@ -178,8 +226,61 @@ export default async function ManualPage() {
 
         <Rule />
 
+        {/* Sanidade & Terror */}
+        <SectionTitle id="sanidade">Da Sanidade &amp; do Terror</SectionTitle>
+        <div className="jornal-cols">
+          <p className="jornal-body">
+            A <strong>Sanidade</strong> é a corda que prende sua mente ao mundo
+            que faz sentido. Cada horror não-arquivável a desfia um pouco. O
+            Mestre pede o custo; às vezes basta olhar, às vezes basta{" "}
+            <em>entender</em>.
+          </p>
+          <p className="jornal-body">
+            Quanto mais baixa, mais o real range: sombras com intenção, nomes
+            sussurrados, a certeza de que o retrato piscou. Perto do fundo, você
+            já não confia nos próprios sentidos — e o Mestre pode narrar por
+            você.
+          </p>
+        </div>
+        <div className="anuncio mt-3 rounded-sm p-3">
+          <p className="hand-title mb-1 text-center text-lg text-ink">
+            Sinais do Desfiar
+          </p>
+          <ul className="jornal-body mx-auto grid max-w-2xl gap-x-6 gap-y-0.5 text-[0.8rem] sm:grid-cols-2">
+            <li>
+              <strong>Cheia:</strong> lúcido. O mundo obedece às regras de
+              sempre.
+            </li>
+            <li>
+              <strong>Trincada:</strong> tiques, insônia, marginálias que você
+              não lembra de ter escrito.
+            </li>
+            <li>
+              <strong>Baixa:</strong> alucinações plausíveis. O Mestre mente
+              para você — e é seu direito não saber.
+            </li>
+            <li>
+              <strong>No zero:</strong> um episódio. Você faz algo que jura não
+              ter feito.
+            </li>
+            <li>
+              <strong>Negativa:</strong> a mente já não é bem sua. Há alguém a
+              conduzindo — e não é você.
+            </li>
+            <li>
+              <strong>Recuperar:</strong> descanso, ritos, rotina teimosa. Água
+              benta acalma; certezas curam mais que remédio.
+            </li>
+          </ul>
+        </div>
+        <p className="marginalia mt-2 text-lg">
+          &ldquo;anotei isto para lembrar que fui eu.&rdquo;
+        </p>
+
+        <Rule />
+
         {/* Vocações */}
-        <SectionTitle>Das Vocações</SectionTitle>
+        <SectionTitle id="vocacoes">Das Vocações</SectionTitle>
         <p className="jornal-body mb-4">
           Na criação escolhe-se entre <strong>Combatente</strong> e{" "}
           <strong>Especialista</strong>.{" "}
@@ -253,7 +354,7 @@ export default async function ManualPage() {
         <Rule />
 
         {/* Níveis */}
-        <SectionTitle>Da Ascensão (0 a {MAX_LEVEL})</SectionTitle>
+        <SectionTitle id="ascensao">Da Ascensão (0 a {MAX_LEVEL})</SectionTitle>
         <div className="jornal-cols">
           <p className="jornal-body">
             Ninguém nasce herói. Começa-se no <strong>Nível 0 — Comum</strong>,
@@ -277,14 +378,11 @@ export default async function ManualPage() {
                 {CLASS_INFO[c].label}
               </p>
               <ul className="mt-1 space-y-0.5">
-                {CLASS_MILESTONES[c].slice(0, 3).map((m) => (
+                {CLASS_MILESTONES[c].map((m) => (
                   <li key={m.level} className="jornal-body text-[0.78rem]">
                     <strong>Nv {m.level}:</strong> {m.nome}
                   </li>
                 ))}
-                <li className="typewriter text-[0.65rem] text-sepia-dark">
-                  …e mais até o 25.
-                </li>
               </ul>
             </div>
           ))}
@@ -293,12 +391,38 @@ export default async function ManualPage() {
         <Rule />
 
         {/* Dano */}
-        <SectionTitle>Do Dano &amp; das Armas</SectionTitle>
+        <SectionTitle id="dano">Do Dano &amp; das Armas</SectionTitle>
         <p className="jornal-body">
           Cada arma carrega seu próprio dado. O estrago é{" "}
           <strong>o dado da arma + Combate</strong>. Um <strong>Combatente</strong>{" "}
           bate mais fundo: rola o dado <strong>duas vezes</strong> e fica com o
           maior. Dados conhecidos: <strong>{dados}</strong>.
+        </p>
+
+        <Rule />
+
+        {/* Inventário */}
+        <SectionTitle id="inventario">
+          Do Inventário &amp; dos Apetrechos
+        </SectionTitle>
+        <div className="jornal-cols">
+          <p className="jornal-body">
+            Todo apetrecho carrega uma <strong>quantidade</strong> e um número de{" "}
+            <strong>usos</strong>. Alguns fazem mais que ocupar o bolso: têm{" "}
+            <strong>efeito</strong>. Um <em>Kit Médico</em> devolve fôlego ao
+            corpo; <em>Água Benta</em> reancora a mente. Apertar{" "}
+            <strong>Usar</strong> aplica o efeito, gasta um uso e anota tudo
+            sozinho.
+          </p>
+          <p className="jornal-body">
+            Não precisa ser egoísta: um item de efeito pode ser usado{" "}
+            <strong>num aliado</strong> à mesa — escolha o alvo ao usar. Vazio o
+            número de usos, o apetrecho vira lembrança. As armas, essas, mostram
+            seu dado ao lado do nome, prontas para rolar.
+          </p>
+        </div>
+        <p className="marginalia mt-2 text-lg">
+          &ldquo;guarde a última bala. sempre.&rdquo;
         </p>
 
         <Rule />
@@ -333,10 +457,36 @@ export default async function ManualPage() {
 
         <Rule />
 
+        {/* Léxico */}
+        <SectionTitle id="lexico">Léxico da Divisão</SectionTitle>
+        <p className="jornal-body mb-3 text-[0.85rem] italic">
+          Termos que aparecem nestas páginas e nas fichas. Decore-os; talvez não
+          haja tempo de perguntar depois.
+        </p>
+        <dl className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+          {[
+            ["Véu", "A membrana fina entre o mundo comum e o Irreal. Rompê-lo não tem volta."],
+            ["Irreal", "Tudo o que existe do outro lado do véu — e o que escorre para cá."],
+            ["Não-arquivável", "Caso cuja verdade não cabe num relatório. A Divisão existe para eles."],
+            ["Sobrevida", "Fôlego emprestado: PV ou Sanidade acima do máximo. Não dura."],
+            ["Marco", "Habilidade de assinatura que desperta a cada 5 níveis."],
+            ["Foco", "Do Especialista: dois atributos afiados que rolam com vantagem."],
+            ["Sucesso Parcial", "Resultado 7–9: consegue-se, mas sempre a um preço."],
+            ["Proposta do Além", "A oferta que faz de um investigador um Ocultista."],
+          ].map(([termo, def]) => (
+            <div key={termo} className="border-b border-dotted border-sepia-ink/25 pb-1">
+              <dt className="hand text-lg leading-tight text-stamp">{termo}</dt>
+              <dd className="jornal-body text-[0.8rem] leading-snug">{def}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <Rule />
+
         {/* Classificados & Boatos */}
         <div className="mb-2 flex items-center justify-center gap-3 text-ink">
           <Raven className="text-3xl" />
-          <SectionTitle>Classificados &amp; Boatos</SectionTitle>
+          <SectionTitle id="classificados">Classificados &amp; Boatos</SectionTitle>
           <Candle className="text-2xl" />
         </div>
         <p className="jornal-body mb-4 text-center text-[0.8rem] italic">
@@ -370,8 +520,18 @@ export default async function ManualPage() {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="hand-title mb-2 mt-1 text-3xl text-ink">{children}</h2>;
+function SectionTitle({
+  children,
+  id,
+}: {
+  children: React.ReactNode;
+  id?: string;
+}) {
+  return (
+    <h2 id={id} className="hand-title mb-2 mt-1 scroll-mt-24 text-3xl text-ink">
+      {children}
+    </h2>
+  );
 }
 
 function Rule() {
