@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CharacterDTO, InventoryItem } from "@/lib/character";
 import {
@@ -67,6 +67,47 @@ export function CharacterSheet({ character, party = [] }: Props) {
   );
   const [pvAtual, setPvAtual] = useState(character.pvAtual);
   const [sanAtual, setSanAtual] = useState(character.sanAtual);
+
+  // "Sujo" = há edições locais não salvas (comparado ao que veio do servidor).
+  const invServidor = JSON.stringify(character.inventory);
+  const dirty =
+    appearance !== (character.appearance ?? "") ||
+    portraitUrl !== (character.portraitUrl ?? "") ||
+    playerNotes !== (character.playerNotes ?? "") ||
+    pvAtual !== character.pvAtual ||
+    sanAtual !== character.sanAtual ||
+    JSON.stringify(inventory) !== invServidor;
+
+  // Sincroniza o estado local quando os dados do servidor mudam (ex.: um
+  // aliado usou um item em você, ou o Mestre editou). Só roda quando os
+  // valores do servidor mudam — se você estiver editando (dirty), o auto-
+  // refresh nem dispara, então suas edições ficam preservadas.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setAppearance(character.appearance ?? "");
+    setPortraitUrl(character.portraitUrl ?? "");
+    setPlayerNotes(character.playerNotes ?? "");
+    setInventory(character.inventory);
+    setPvAtual(character.pvAtual);
+    setSanAtual(character.sanAtual);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    character.appearance,
+    character.portraitUrl,
+    character.playerNotes,
+    character.pvAtual,
+    character.sanAtual,
+    invServidor,
+  ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Polling ~5s: recarrega os dados do servidor, mas só quando não há edição
+  // pendente nem salvamento em curso (não atrapalha quem está mexendo).
+  useEffect(() => {
+    if (dirty || saving) return;
+    const t = setInterval(() => router.refresh(), 5000);
+    return () => clearInterval(t);
+  }, [dirty, saving, router]);
 
   async function save() {
     setSaving(true);
@@ -145,6 +186,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
     );
     const alvo = party.find((p) => p.id === allyId);
     setMsg(`${it.nome} usado em ${alvo?.name ?? "aliado"}.`);
+    router.refresh();
   }
 
   const combatente = character.classe === "COMBATENTE";
