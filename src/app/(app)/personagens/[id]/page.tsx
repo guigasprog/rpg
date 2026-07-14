@@ -27,6 +27,13 @@ export default async function CharacterPage({
   const dto = toCharacterDTO(character, viewer);
   const isMaster = viewer.role === ROLES.MASTER;
 
+  // Aliados que podem receber itens (demais personagens ativos da mesa).
+  const party = await prisma.character.findMany({
+    where: { id: { not: id }, arquivado: false },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+
   return (
     <main>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -43,7 +50,7 @@ export default async function CharacterPage({
         )}
       </div>
 
-      <CharacterSheet character={dto} />
+      <CharacterSheet character={dto} party={party} />
     </main>
   );
 }

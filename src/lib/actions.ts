@@ -257,6 +257,72 @@ export async function setCharacterLevel(
   return { ok: true, id };
 }
 
+// Usar um item consumível EM OUTRO personagem (aliado): aplica o efeito no
+// alvo e gasta 1 uso do inventário de quem usou.
+export async function usarItemNoAliado(
+  userId: string,
+  allyId: string,
+  itemIndex: number,
+  input: unknown,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+
+  const user = await prisma.character.findUnique({ where: { id: userId } });
+  if (!user) return fail("Personagem não encontrado.");
+
+  const isOwner = user.ownerId === viewer.id;
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isOwner && !isMaster) return fail("Sem permissão.");
+
+  const parsed = playerUpdateSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
+  }
+  const d = parsed.data;
+  if (!d.inventory) return fail("Inventário ausente.");
+
+  const item = d.inventory[itemIndex];
+  if (!item) return fail("Item inválido.");
+  if (item.usos <= 0) return fail("Este item não tem usos restantes.");
+
+  const efeitoPv = item.efeitoPv ?? 0;
+  const efeitoSan = item.efeitoSan ?? 0;
+
+  // Gasta 1 uso no inventário de quem usou e persiste os campos do jogador.
+  const inv = d.inventory.map((x, i) =>
+    i === itemIndex ? { ...x, usos: Math.max(0, x.usos - 1) } : x,
+  );
+  await prisma.character.update({
+    where: { id: userId },
+    data: {
+      appearance: d.appearance !== undefined ? d.appearance || null : undefined,
+      portraitUrl:
+        d.portraitUrl !== undefined ? d.portraitUrl || null : undefined,
+      playerNotes:
+        d.playerNotes !== undefined ? d.playerNotes || null : undefined,
+      inventory: JSON.stringify(inv),
+      pvAtual: d.pvAtual,
+      sanAtual: d.sanAtual,
+    },
+  });
+
+  // Aplica o efeito no aliado (sem clamp: aceita sobrevida/negativo).
+  const ally = await prisma.character.findUnique({ where: { id: allyId } });
+  if (!ally) return fail("Aliado não encontrado.");
+  await prisma.character.update({
+    where: { id: allyId },
+    data: {
+      pvAtual: ally.pvAtual + efeitoPv,
+      sanAtual: ally.sanAtual + efeitoSan,
+    },
+  });
+
+  revalidateCharacter(userId);
+  revalidateCharacter(allyId);
+  return { ok: true };
+}
+
 // Jogador (dono) escolhe a subclasse ao atingir o nível 5. GM pode trocar.
 export async function chooseSubclass(
   id: string,

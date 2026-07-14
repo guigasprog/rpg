@@ -7,6 +7,7 @@ import {
   chooseSubclass,
   respondOccultOffer,
   updateCharacterAsPlayer,
+  usarItemNoAliado,
 } from "@/lib/actions";
 import {
   ATTRIBUTES,
@@ -34,8 +35,14 @@ import {
   MagnifierIcon,
 } from "@/components/icons";
 
+interface Ally {
+  id: string;
+  name: string;
+}
+
 interface Props {
   character: CharacterDTO;
+  party?: Ally[];
 }
 
 type TabId = "id" | "attrs" | "resources" | "inventory" | "notes" | "occultism";
@@ -44,7 +51,7 @@ function fmtSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
 }
 
-export function CharacterSheet({ character }: Props) {
+export function CharacterSheet({ character, party = [] }: Props) {
   const router = useRouter();
   const canEdit = character.canEditAsPlayer;
 
@@ -112,6 +119,32 @@ export function CharacterSheet({ character }: Props) {
     }
     setMsg(`${it.nome} usado.`);
     router.refresh();
+  }
+
+  // Usar item em um aliado: aplica o efeito no alvo e gasta 1 uso (salva).
+  async function usarNoAliado(i: number, allyId: string) {
+    const it = inventory[i];
+    if (!it || it.usos <= 0 || saving) return;
+    setSaving(true);
+    setMsg(null);
+    const res = await usarItemNoAliado(character.id, allyId, i, {
+      appearance,
+      portraitUrl,
+      playerNotes,
+      inventory,
+      pvAtual,
+      sanAtual,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setMsg(res.error ?? "Falha ao usar no aliado.");
+      return;
+    }
+    setInventory((prev) =>
+      prev.map((x, j) => (j === i ? { ...x, usos: Math.max(0, x.usos - 1) } : x)),
+    );
+    const alvo = party.find((p) => p.id === allyId);
+    setMsg(`${it.nome} usado em ${alvo?.name ?? "aliado"}.`);
   }
 
   const combatente = character.classe === "COMBATENTE";
@@ -344,6 +377,8 @@ export function CharacterSheet({ character }: Props) {
             combate={character.attrCombate}
             combatente={combatente}
             onUsar={usarItem}
+            party={party}
+            onUsarAliado={usarNoAliado}
           />
         )}
 
@@ -651,6 +686,8 @@ function InventoryTab({
   combate,
   combatente,
   onUsar,
+  party,
+  onUsarAliado,
 }: {
   inventory: InventoryItem[];
   setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
@@ -658,7 +695,10 @@ function InventoryTab({
   combate: number;
   combatente: boolean;
   onUsar: (i: number) => void;
+  party: Ally[];
+  onUsarAliado: (i: number, allyId: string) => void;
 }) {
+  const [alvoIdx, setAlvoIdx] = useState<number | null>(null);
   const [nome, setNome] = useState("");
   const [dano, setDano] = useState("");
   const [qtd, setQtd] = useState(1);
@@ -718,20 +758,33 @@ function InventoryTab({
               </span>
             </span>
             <div className="flex items-center gap-2">
-              {canEdit && item.usos > 0 && (
-                <button
-                  type="button"
-                  className="btn btn-primary tap px-2 py-1 text-xs"
-                  onClick={() => onUsar(i)}
-                  title={
-                    item.efeitoPv || item.efeitoSan
-                      ? "Usar: aplica o efeito e gasta 1 uso"
-                      : "Usar (−1 uso)"
-                  }
-                >
-                  Usar
-                </button>
-              )}
+              {canEdit &&
+                item.usos > 0 &&
+                (() => {
+                  const temEfeito =
+                    item.efeitoPv !== 0 || item.efeitoSan !== 0;
+                  const podeAlvo = temEfeito && party.length > 0;
+                  return (
+                    <button
+                      type="button"
+                      className="btn btn-primary tap px-2 py-1 text-xs"
+                      onClick={() =>
+                        podeAlvo
+                          ? setAlvoIdx(alvoIdx === i ? null : i)
+                          : onUsar(i)
+                      }
+                      title={
+                        podeAlvo
+                          ? "Usar em você ou num aliado"
+                          : temEfeito
+                            ? "Usar: aplica o efeito e gasta 1 uso"
+                            : "Usar (−1 uso)"
+                      }
+                    >
+                      {podeAlvo ? "Usar…" : "Usar"}
+                    </button>
+                  );
+                })()}
               {item.dano ? (
                 <WeaponRoller
                   dieCode={item.dano}
@@ -752,6 +805,34 @@ function InventoryTab({
                 </button>
               )}
             </div>
+            {alvoIdx === i && (
+              <div className="mt-1 flex w-full flex-wrap items-center gap-1 border-t border-dashed border-sepia/20 pt-2">
+                <span className="label mr-1">Usar em:</span>
+                <button
+                  type="button"
+                  className="btn btn-dark tap px-2 py-1 text-[0.65rem]"
+                  onClick={() => {
+                    onUsar(i);
+                    setAlvoIdx(null);
+                  }}
+                >
+                  Você
+                </button>
+                {party.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className="btn btn-dark tap px-2 py-1 text-[0.65rem]"
+                    onClick={() => {
+                      onUsarAliado(i, a.id);
+                      setAlvoIdx(null);
+                    }}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </li>
         ))}
       </ul>
