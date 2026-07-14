@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function MasterDashboard() {
   const viewer = await requireMaster();
 
-  const [characters, players] = await Promise.all([
+  const [characters, players, iniciativaCount] = await Promise.all([
     prisma.character.findMany({
       orderBy: { createdAt: "asc" },
       include: { owner: { select: { username: true } } },
@@ -35,18 +35,67 @@ export default async function MasterDashboard() {
         _count: { select: { characters: true } },
       },
     }),
+    prisma.initiativeEntry.count(),
   ]);
+
+  const jogadores = players.filter((p) => p.role !== "MASTER").length;
+  const occultUnlocked = characters.filter((c) => c.occultismUnlocked).length;
+  const propostasPend = characters.filter(
+    (c) => c.propostaStatus === PROPOSTA.PENDENTE,
+  ).length;
+  const naMesa = characters.filter((c) => c.mostrarNaMesa).length;
+  const ativos = characters.filter((c) => !c.arquivado).length;
+
+  const tiles = [
+    { n: ativos, label: "Investigadores ativos" },
+    { n: jogadores, label: "Jogadores" },
+    { n: occultUnlocked, label: "Ocultismo liberado" },
+    { n: iniciativaCount, label: "Em combate" },
+    { n: propostasPend, label: "Propostas pendentes", alerta: propostasPend > 0 },
+    { n: naMesa, label: "Na mesa (retrato)" },
+  ];
 
   return (
     <main className="space-y-8">
-      <div>
-        <h1 className="display text-2xl text-paper-light">Mesa do Mestre</h1>
-        <p className="typewriter text-sm text-paper/60">
+      {/* Cabeçalho + atalhos */}
+      <div className="paper paper-edge relative overflow-hidden rounded-md p-5">
+        <span className="stamp absolute -top-2 right-4 text-[0.55rem]">
+          Confidencial
+        </span>
+        <h1 className="display text-3xl text-sepia-ink">Mesa do Mestre</h1>
+        <p className="typewriter text-sm text-sepia">
           Toda a mesa sob os holofotes. Nada escapa daqui.
         </p>
-        <Link href="/mestre/livro" className="btn btn-primary mt-3 inline-block text-xs">
-          📖 Livro das Monstruosidades
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/mestre/livro" className="btn btn-primary tap text-xs">
+            📖 Livro das Monstruosidades
+          </Link>
+          <Link href="/manual" className="btn btn-dark tap text-xs">
+            📰 Manual da mesa
+          </Link>
+          <Link href="/personagens/novo" className="btn btn-dark tap text-xs">
+            + Novo dossiê
+          </Link>
+        </div>
+      </div>
+
+      {/* Tiles de resumo */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {tiles.map((t) => (
+          <div
+            key={t.label}
+            className={`paper paper-edge rounded-md p-3 text-center ${t.alerta ? "ring-1 ring-stamp" : ""}`}
+          >
+            <div
+              className={`display text-3xl ${t.alerta ? "text-stamp" : "text-sepia-ink"}`}
+            >
+              {t.n}
+            </div>
+            <div className="typewriter text-[0.62rem] leading-tight text-sepia-dark">
+              {t.label}
+            </div>
+          </div>
+        ))}
       </div>
 
       <section>
@@ -63,7 +112,22 @@ export default async function MasterDashboard() {
                 className={`paper paper-edge rounded-md p-4 ${c.arquivado ? "opacity-60" : ""}`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 gap-3">
+                    <div className="paper-edge h-16 w-14 shrink-0 overflow-hidden rounded bg-black/10">
+                      {c.portraitUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.portraitUrl}
+                          alt={c.name}
+                          className="h-full w-full object-cover grayscale"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-lg text-sepia/40">
+                          ?
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
                     <h3 className="display truncate text-lg text-sepia-ink">
                       {c.name}
                     </h3>
@@ -95,6 +159,7 @@ export default async function MasterDashboard() {
                         ? ` · desde ${new Date(c.occultismUnlockedAt).toLocaleDateString("pt-BR")}`
                         : ""}
                     </p>
+                    </div>
                   </div>
                   <Link
                     href={`/mestre/personagens/${c.id}`}

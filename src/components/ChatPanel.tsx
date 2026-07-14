@@ -65,7 +65,7 @@ export function ChatPanel() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="btn btn-primary fixed bottom-4 right-4 z-[80] h-12 w-12 rounded-full p-0 text-xl shadow-lg"
+        className="btn btn-primary fixed bottom-4 right-4 z-[80] flex h-12 w-12 items-center justify-center rounded-full p-0 text-xl leading-none shadow-lg"
         title="Chat & dados da mesa"
         aria-label="Abrir chat"
       >

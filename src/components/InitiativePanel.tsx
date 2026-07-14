@@ -57,7 +57,7 @@ export function InitiativePanel({ isMaster }: { isMaster: boolean }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`btn fixed bottom-4 left-4 z-[80] h-12 w-12 rounded-full p-0 text-xl shadow-lg ${temCombate ? "btn-primary" : "btn-dark"}`}
+        className={`btn fixed bottom-4 left-4 z-[80] flex h-12 w-12 items-center justify-center rounded-full p-0 text-xl leading-none shadow-lg ${temCombate ? "btn-primary" : "btn-dark"}`}
         title="Ordem de combate"
         aria-label="Ordem de combate"
       >
