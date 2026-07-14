@@ -125,6 +125,9 @@ export async function updateCharacterAsPlayer(
   await prisma.character.update({
     where: { id },
     data: {
+      name: d.name !== undefined ? d.name : undefined,
+      occupation:
+        d.occupation !== undefined ? d.occupation || null : undefined,
       appearance: d.appearance !== undefined ? d.appearance || null : undefined,
       portraitUrl:
         d.portraitUrl !== undefined && podeTrocarFoto

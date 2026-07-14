@@ -60,6 +60,12 @@ export function CharacterSheet({ character, party = [] }: Props) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // Modo edição: por padrão a ficha é só leitura; o jogador liga para editar.
+  const [editando, setEditando] = useState(false);
+  const editing = canEdit && editando;
+
+  const [name, setName] = useState(character.name);
+  const [occupation, setOccupation] = useState(character.occupation ?? "");
   const [appearance, setAppearance] = useState(character.appearance ?? "");
   const [portraitUrl, setPortraitUrl] = useState(character.portraitUrl ?? "");
   const [playerNotes, setPlayerNotes] = useState(character.playerNotes ?? "");
@@ -73,6 +79,8 @@ export function CharacterSheet({ character, party = [] }: Props) {
   const invServidor = JSON.stringify(character.inventory);
   const invLocal = JSON.stringify(inventory);
   const dirty =
+    (name.trim() !== "" && name.trim() !== character.name) ||
+    occupation !== (character.occupation ?? "") ||
     appearance !== (character.appearance ?? "") ||
     portraitUrl !== (character.portraitUrl ?? "") ||
     playerNotes !== (character.playerNotes ?? "") ||
@@ -80,12 +88,23 @@ export function CharacterSheet({ character, party = [] }: Props) {
     sanAtual !== character.sanAtual ||
     invLocal !== invServidor;
 
+  // Payload comum enviado ao servidor (nome nunca vai vazio).
+  const basePayload = () => ({
+    name: name.trim() || character.name,
+    occupation,
+    appearance,
+    portraitUrl,
+    playerNotes,
+  });
+
   // Sincroniza o estado local quando os dados do servidor mudam (ex.: um
   // aliado usou um item em você, ou o Mestre editou). Só roda quando os
   // valores do servidor mudam — se você estiver editando (dirty), o auto-
   // refresh nem dispara, então suas edições ficam preservadas.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    setName(character.name);
+    setOccupation(character.occupation ?? "");
     setAppearance(character.appearance ?? "");
     setPortraitUrl(character.portraitUrl ?? "");
     setPlayerNotes(character.playerNotes ?? "");
@@ -94,6 +113,8 @@ export function CharacterSheet({ character, party = [] }: Props) {
     setSanAtual(character.sanAtual);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    character.name,
+    character.occupation,
     character.appearance,
     character.portraitUrl,
     character.playerNotes,
@@ -117,9 +138,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
     const t = setTimeout(async () => {
       setSaving(true);
       const res = await updateCharacterAsPlayer(character.id, {
-        appearance,
-        portraitUrl,
-        playerNotes,
+        ...basePayload(),
         inventory,
         pvAtual,
         sanAtual,
@@ -134,7 +153,17 @@ export function CharacterSheet({ character, party = [] }: Props) {
     }, 800);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, appearance, portraitUrl, playerNotes, pvAtual, sanAtual, invLocal]);
+  }, [
+    dirty,
+    name,
+    occupation,
+    appearance,
+    portraitUrl,
+    playerNotes,
+    pvAtual,
+    sanAtual,
+    invLocal,
+  ]);
 
   // Usar item: aplica o efeito (PV/SAN), gasta 1 uso e SALVA automaticamente.
   async function usarItem(i: number) {
@@ -153,9 +182,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
     setSaving(true);
     setMsg(null);
     const res = await updateCharacterAsPlayer(character.id, {
-      appearance,
-      portraitUrl,
-      playerNotes,
+      ...basePayload(),
       inventory: novoInv,
       pvAtual: novoPv,
       sanAtual: novoSan,
@@ -176,9 +203,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
     setSaving(true);
     setMsg(null);
     const res = await usarItemNoAliado(character.id, allyId, i, {
-      appearance,
-      portraitUrl,
-      playerNotes,
+      ...basePayload(),
       inventory,
       pvAtual,
       sanAtual,
@@ -248,9 +273,25 @@ export function CharacterSheet({ character, party = [] }: Props) {
           </span>
         )}
         {canEdit && (
-          <span className="typewriter ml-auto text-xs text-sepia">
-            {saving ? "salvando…" : dirty ? "alterações pendentes…" : msg || "✓ salvo"}
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="typewriter text-xs text-sepia">
+              {editing
+                ? saving
+                  ? "salvando…"
+                  : dirty
+                    ? "alterações pendentes…"
+                    : msg || "✓ salvo"
+                : "somente leitura"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEditando((v) => !v)}
+              className={`btn tap px-3 py-1 text-xs ${editing ? "btn-primary" : "btn-dark"}`}
+              title={editing ? "Sair do modo edição" : "Entrar no modo edição"}
+            >
+              {editing ? "✓ Concluir" : "✎ Editar ficha"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -292,7 +333,11 @@ export function CharacterSheet({ character, party = [] }: Props) {
         {tab === "id" && (
           <IdentificationTab
             character={character}
-            canEdit={canEdit}
+            editing={editing}
+            name={name}
+            setName={setName}
+            occupation={occupation}
+            setOccupation={setOccupation}
             appearance={appearance}
             setAppearance={setAppearance}
             portraitUrl={portraitUrl}
@@ -423,7 +468,8 @@ export function CharacterSheet({ character, party = [] }: Props) {
           <InventoryTab
             inventory={inventory}
             setInventory={setInventory}
-            canEdit={canEdit}
+            editing={editing}
+            canUse={canEdit}
             combate={character.attrCombate}
             combatente={combatente}
             onUsar={usarItem}
@@ -435,7 +481,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
         {tab === "notes" && (
           <div>
             <SectionTitle>Anotações do Investigador</SectionTitle>
-            {canEdit ? (
+            {editing ? (
               <textarea
                 className="field min-h-40"
                 value={playerNotes}
@@ -569,14 +615,22 @@ function SubclassPrompt({ character }: { character: CharacterDTO }) {
 
 function IdentificationTab({
   character,
-  canEdit,
+  editing,
+  name,
+  setName,
+  occupation,
+  setOccupation,
   appearance,
   setAppearance,
   portraitUrl,
   setPortraitUrl,
 }: {
   character: CharacterDTO;
-  canEdit: boolean;
+  editing: boolean;
+  name: string;
+  setName: (v: string) => void;
+  occupation: string;
+  setOccupation: (v: string) => void;
   appearance: string;
   setAppearance: (v: string) => void;
   portraitUrl: string;
@@ -586,7 +640,7 @@ function IdentificationTab({
   const [pending, startTransition] = useTransition();
   const travado = character.retratoTravado;
   const isMaster = character.canEditAsMaster;
-  const podeTrocarFoto = canEdit && (isMaster || !travado);
+  const podeTrocarFoto = editing && (isMaster || !travado);
 
   function toggleTrava() {
     startTransition(async () => {
@@ -637,7 +691,7 @@ function IdentificationTab({
             onChange={(e) => setPortraitUrl(e.target.value)}
             placeholder="URL do retrato"
           />
-        ) : canEdit && travado ? (
+        ) : editing && travado ? (
           <p className="typewriter mt-2 text-[0.65rem] text-sepia">
             🔒 Foto travada pelo Mestre.
           </p>
@@ -647,7 +701,19 @@ function IdentificationTab({
       <div className="space-y-3">
         <div>
           <label className="label">Nome</label>
-          <p className="display text-2xl text-sepia-ink">{character.name}</p>
+          {editing ? (
+            <input
+              className="field mt-1 text-lg"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => {
+                if (!name.trim()) setName(character.name);
+              }}
+              placeholder="Nome do investigador"
+            />
+          ) : (
+            <p className="display text-2xl text-sepia-ink">{character.name}</p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -656,9 +722,18 @@ function IdentificationTab({
           </div>
           <div>
             <label className="label">Ocupação</label>
-            <p className="typewriter text-sepia-ink">
-              {character.occupation || "—"}
-            </p>
+            {editing ? (
+              <input
+                className="field mt-1"
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value)}
+                placeholder="Ex.: Detetive particular"
+              />
+            ) : (
+              <p className="typewriter text-sepia-ink">
+                {character.occupation || "—"}
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Classe</label>
@@ -675,7 +750,7 @@ function IdentificationTab({
         </div>
         <div>
           <label className="label">Aparência</label>
-          {canEdit ? (
+          {editing ? (
             <textarea
               className="field mt-1"
               rows={4}
@@ -751,7 +826,8 @@ function ResourceControl({
 function InventoryTab({
   inventory,
   setInventory,
-  canEdit,
+  editing,
+  canUse,
   combate,
   combatente,
   onUsar,
@@ -760,7 +836,8 @@ function InventoryTab({
 }: {
   inventory: InventoryItem[];
   setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
-  canEdit: boolean;
+  editing: boolean;
+  canUse: boolean;
   combate: number;
   combatente: boolean;
   onUsar: (i: number) => void;
@@ -827,7 +904,7 @@ function InventoryTab({
               </span>
             </span>
             <div className="flex items-center gap-2">
-              {canEdit &&
+              {canUse &&
                 item.usos > 0 &&
                 (() => {
                   const temEfeito =
@@ -862,7 +939,7 @@ function InventoryTab({
                   nome={item.nome}
                 />
               ) : null}
-              {canEdit && (
+              {editing && (
                 <button
                   type="button"
                   className="tap text-stamp hover:underline"
@@ -906,7 +983,7 @@ function InventoryTab({
           </li>
         ))}
       </ul>
-      {canEdit && (
+      {editing && (
         <div className="mt-4 flex flex-wrap items-end gap-2">
           <div className="min-w-[8rem] flex-1">
             <label className="label">Item</label>

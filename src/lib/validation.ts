@@ -84,6 +84,8 @@ export const createCharacterSchema = z
 
 // Campos que o jogador pode editar na própria ficha.
 export const playerUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  occupation: z.string().trim().max(200).optional().or(z.literal("")),
   appearance: z.string().trim().max(2000).optional().or(z.literal("")),
   portraitUrl: z.string().trim().max(2000).optional().or(z.literal("")),
   inventory: inventoryArray.optional(),

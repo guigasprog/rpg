@@ -18,12 +18,21 @@ import {
   OCCULTISM_MAX_LEVEL,
   PROPOSTA,
   WEAPON_DICE,
+  classLabel,
   computeMaxPv,
   computeMaxSan,
   getSubclass,
+  levelLabel,
+  subclassLabel,
   subclassesFor,
+  unlockedMilestones,
 } from "@/lib/game";
 import { OccultismToggle } from "@/components/OccultismToggle";
+import { ResourceMeter } from "@/components/ResourceMeter";
+
+function fmtSigned(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
 
 interface Props {
   character: CharacterDTO;
@@ -36,6 +45,8 @@ export function MasterEditForm({ character }: Props) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Modo edição: por padrão mostra o dossiê (leitura); o Mestre liga p/ editar.
+  const [editando, setEditando] = useState(false);
 
   const [form, setForm] = useState({
     name: character.name,
@@ -140,6 +151,7 @@ export function MasterEditForm({ character }: Props) {
         return;
       }
       setMsg("Dossiê atualizado.");
+      setEditando(false);
       router.refresh();
     });
   }
@@ -186,8 +198,35 @@ export function MasterEditForm({ character }: Props) {
     });
   }
 
+  if (!editando) {
+    return (
+      <div className="space-y-6">
+        <DossierBar
+          character={character}
+          editando={false}
+          onToggle={() => setEditando(true)}
+          onSave={save}
+          pending={pending}
+          msg={msg}
+          error={error}
+        />
+        <DossierView character={character} inventory={inventory} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      <DossierBar
+        character={character}
+        editando
+        onToggle={() => setEditando(false)}
+        onSave={save}
+        pending={pending}
+        msg={msg}
+        error={error}
+      />
+
       {/* Identificação */}
       <section className="paper paper-edge rounded-md p-5">
         <h2 className="display mb-3 text-lg text-sepia-ink">Identificação</h2>
@@ -418,6 +457,324 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="label">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function DossierBar({
+  character,
+  editando,
+  onToggle,
+  onSave,
+  pending,
+  msg,
+  error,
+}: {
+  character: CharacterDTO;
+  editando: boolean;
+  onToggle: () => void;
+  onSave: () => void;
+  pending: boolean;
+  msg: string | null;
+  error: string | null;
+}) {
+  return (
+    <div className="paper paper-edge flex flex-wrap items-center justify-between gap-3 rounded-md p-4">
+      <div className="min-w-0">
+        <p className="stamp text-[0.6rem]">Dossiê confidencial</p>
+        <h1 className="display truncate text-2xl text-sepia-ink">
+          {character.name}
+        </h1>
+        <p className="typewriter truncate text-xs text-sepia">
+          {character.playerName} · {classLabel(character.classe)} ·{" "}
+          {levelLabel(character.nivel)}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {(msg || error) && (
+          <span
+            className={`typewriter text-xs ${error ? "text-stamp" : "text-sepia"}`}
+          >
+            {error || msg}
+          </span>
+        )}
+        {editando ? (
+          <>
+            <button
+              type="button"
+              className="btn btn-primary tap"
+              onClick={onSave}
+              disabled={pending}
+            >
+              {pending ? "Salvando…" : "✓ Salvar"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost tap"
+              onClick={onToggle}
+              disabled={pending}
+            >
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary tap"
+            onClick={onToggle}
+          >
+            ✎ Editar dossiê
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DossierView({
+  character,
+  inventory,
+}: {
+  character: CharacterDTO;
+  inventory: InventoryItem[];
+}) {
+  const milestones = unlockedMilestones(character.classe, character.nivel);
+  const sub = getSubclass(character.subclasse);
+  const attrs = character as unknown as Record<string, number>;
+
+  return (
+    <div className="space-y-6">
+      {/* Cabeçalho: retrato + identificação */}
+      <section className="paper paper-edge rounded-md p-5">
+        <div className="grid gap-5 sm:grid-cols-[140px_1fr]">
+          <div className="paper-edge relative flex aspect-[3/4] items-center justify-center overflow-hidden rounded bg-black/10">
+            {character.portraitUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={character.portraitUrl}
+                alt={character.name}
+                className="h-full w-full object-cover grayscale"
+              />
+            ) : (
+              <span className="text-4xl text-sepia/40">?</span>
+            )}
+            {character.retratoTravado && (
+              <span className="absolute right-1 top-1 rounded bg-ink/80 px-1.5 py-0.5 text-sm">
+                🔒
+              </span>
+            )}
+          </div>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1">
+              <span
+                className={`badge ${character.classe === "OCULTISTA" ? "badge-ocultista" : "badge-classe"}`}
+              >
+                {classLabel(character.classe)}
+              </span>
+              {character.subclasse && (
+                <span className="badge badge-classe">
+                  {subclassLabel(character.subclasse)}
+                </span>
+              )}
+              <span className="badge badge-nivel">
+                {levelLabel(character.nivel)}
+              </span>
+              {character.occultismUnlocked && (
+                <span className="badge badge-ocultista">
+                  ocultismo nv {character.occultismLevel}
+                </span>
+              )}
+              {character.propostaStatus === PROPOSTA.PENDENTE && (
+                <span className="badge badge-ocultista">proposta pendente</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Jogador</label>
+                <p className="typewriter text-sepia-ink">
+                  {character.playerName}
+                </p>
+              </div>
+              <div>
+                <label className="label">Ocupação</label>
+                <p className="typewriter text-sepia-ink">
+                  {character.occupation || "—"}
+                </p>
+              </div>
+            </div>
+            <div>
+              <label className="label">Aparência</label>
+              <p className="typewriter whitespace-pre-wrap text-sepia-ink">
+                {character.appearance || "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Atributos & Recursos */}
+      <section className="paper paper-edge rounded-md p-5">
+        <h2 className="display mb-3 text-lg text-sepia-ink">
+          Atributos & Recursos
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {ATTRIBUTES.map((a) => {
+            const foco = character.especialistaFocos.includes(a.key);
+            return (
+              <div key={a.key} className="text-center">
+                <div
+                  className={`attr-stamp mx-auto flex h-14 w-14 items-center justify-center bg-paper-light ${foco ? "ring-2 ring-stamp" : ""}`}
+                >
+                  <span className="typewriter text-xl">
+                    {fmtSigned(attrs[a.key] ?? 0)}
+                  </span>
+                </div>
+                <div className="typewriter mt-1 text-[0.65rem] text-sepia">
+                  {a.code}
+                  {foco ? " · foco" : ""}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <ResourceMeter
+            kind="pv"
+            current={character.pvAtual}
+            max={character.pvMax}
+            breakdown=""
+          />
+          <ResourceMeter
+            kind="san"
+            current={character.sanAtual}
+            max={character.sanMax}
+            breakdown=""
+          />
+        </div>
+      </section>
+
+      {/* Habilidades */}
+      {(milestones.length > 0 || sub) && (
+        <section className="paper paper-edge rounded-md p-5">
+          <h2 className="display mb-3 text-lg text-sepia-ink">Habilidades</h2>
+          {milestones.length > 0 && (
+            <ul className="space-y-1">
+              {milestones.map((m) => (
+                <li
+                  key={m.level}
+                  className="typewriter border-b border-dashed border-sepia/30 py-1 text-sm text-sepia-ink"
+                >
+                  <strong>
+                    Nv {m.level} — {m.nome}:
+                  </strong>{" "}
+                  {m.desc}
+                </li>
+              ))}
+            </ul>
+          )}
+          {sub && (
+            <div className="mt-3">
+              <p className="display text-sm text-sepia-ink">
+                Subclasse — {subclassLabel(character.subclasse)}
+              </p>
+              <p className="typewriter text-xs text-sepia">{sub.descricao}</p>
+              <ul className="mt-1 space-y-1">
+                {sub.habilidades.map((h, i) => (
+                  <li
+                    key={i}
+                    className="typewriter border-b border-dashed border-sepia/30 py-1 text-sm text-sepia-ink"
+                  >
+                    {h}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Inventário */}
+      <section className="paper paper-edge rounded-md p-5">
+        <h2 className="display mb-3 text-lg text-sepia-ink">Inventário</h2>
+        {inventory.length === 0 ? (
+          <p className="typewriter text-sm text-sepia-dark">Bolsos vazios.</p>
+        ) : (
+          <ul className="space-y-1">
+            {inventory.map((it, i) => (
+              <li
+                key={i}
+                className="typewriter border-b border-dashed border-sepia/30 py-1 text-sm text-sepia-ink"
+              >
+                — {it.nome}
+                {it.qtd > 1 ? <span className="text-sepia"> ×{it.qtd}</span> : null}
+                {it.dano ? (
+                  <span className="ml-2 text-xs text-stamp">({it.dano})</span>
+                ) : null}
+                {(it.efeitoPv !== 0 || it.efeitoSan !== 0) && (
+                  <span className="ml-2 text-[0.65rem] text-emerald-800">
+                    {it.efeitoPv !== 0
+                      ? `${it.efeitoPv > 0 ? "+" : ""}${it.efeitoPv} PV`
+                      : ""}
+                    {it.efeitoPv !== 0 && it.efeitoSan !== 0 ? " · " : ""}
+                    {it.efeitoSan !== 0
+                      ? `${it.efeitoSan > 0 ? "+" : ""}${it.efeitoSan} SAN`
+                      : ""}
+                  </span>
+                )}
+                <span className="ml-2 text-[0.65rem] text-sepia-dark">
+                  usos: {it.usos}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Anotações */}
+      <section className="paper paper-edge rounded-md p-5">
+        <h2 className="display mb-3 text-lg text-sepia-ink">Anotações</h2>
+        <label className="label">Do jogador</label>
+        <p className="typewriter mb-3 whitespace-pre-wrap text-sepia-ink">
+          {character.playerNotes || "—"}
+        </p>
+        <label className="label text-stamp">
+          Privadas do Mestre (nunca visíveis ao jogador)
+        </label>
+        <p className="typewriter whitespace-pre-wrap text-sepia-ink">
+          {character.masterNotes || "—"}
+        </p>
+      </section>
+
+      {/* Ocultismo */}
+      {(character.occultismUnlocked || character.occultismContent) && (
+        <section className="paper paper-edge irreal rounded-md p-5">
+          <h2 className="display mb-2 text-lg text-stamp">Ocultismo</h2>
+          <p className="typewriter mb-2 text-xs text-sepia">
+            {character.occultismUnlocked
+              ? `Liberado · nível ${character.occultismLevel}`
+              : "Selado"}
+            {" · "}
+            {OCCULTISM_LEVELS.find((l) => l.level === character.occultismLevel)
+              ?.hint ?? ""}
+          </p>
+          {character.occultismContent && (
+            <p className="typewriter whitespace-pre-wrap text-sepia-ink">
+              {character.occultismContent}
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Proposta */}
+      <section className="paper paper-edge rounded-md p-5">
+        <h2 className="display mb-1 text-lg text-sepia-ink">
+          Proposta do Além
+        </h2>
+        <p className="typewriter text-xs text-sepia-dark">
+          Status: <strong>{character.propostaStatus}</strong>
+          {character.classe === "OCULTISTA" && " · já é Ocultista"}
+        </p>
+      </section>
     </div>
   );
 }
