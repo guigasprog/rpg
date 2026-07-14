@@ -24,6 +24,7 @@ export interface CharacterDTO {
   ownerId: string | null;
   arquivado: boolean;
   portraitUrl: string | null;
+  retratoTravado: boolean;
   occupation: string | null;
   appearance: string | null;
 
@@ -145,6 +146,7 @@ export function toCharacterDTO(character: Character, viewer: Viewer): CharacterD
     ownerId: character.ownerId,
     arquivado: character.arquivado,
     portraitUrl: character.portraitUrl,
+    retratoTravado: character.retratoTravado,
     occupation: character.occupation,
     appearance: character.appearance,
 

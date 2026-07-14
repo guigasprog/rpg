@@ -6,6 +6,7 @@ import type { CharacterDTO, InventoryItem } from "@/lib/character";
 import {
   chooseSubclass,
   respondOccultOffer,
+  setRetratoTravado,
   updateCharacterAsPlayer,
   usarItemNoAliado,
 } from "@/lib/actions";
@@ -70,13 +71,14 @@ export function CharacterSheet({ character, party = [] }: Props) {
 
   // "Sujo" = há edições locais não salvas (comparado ao que veio do servidor).
   const invServidor = JSON.stringify(character.inventory);
+  const invLocal = JSON.stringify(inventory);
   const dirty =
     appearance !== (character.appearance ?? "") ||
     portraitUrl !== (character.portraitUrl ?? "") ||
     playerNotes !== (character.playerNotes ?? "") ||
     pvAtual !== character.pvAtual ||
     sanAtual !== character.sanAtual ||
-    JSON.stringify(inventory) !== invServidor;
+    invLocal !== invServidor;
 
   // Sincroniza o estado local quando os dados do servidor mudam (ex.: um
   // aliado usou um item em você, ou o Mestre editou). Só roda quando os
@@ -109,25 +111,30 @@ export function CharacterSheet({ character, party = [] }: Props) {
     return () => clearInterval(t);
   }, [dirty, saving, router]);
 
-  async function save() {
-    setSaving(true);
-    setMsg(null);
-    const res = await updateCharacterAsPlayer(character.id, {
-      appearance,
-      portraitUrl,
-      playerNotes,
-      inventory,
-      pvAtual,
-      sanAtual,
-    });
-    setSaving(false);
-    if (!res.ok) {
-      setMsg(res.error ?? "Falha ao salvar.");
-      return;
-    }
-    setMsg("Registro atualizado.");
-    router.refresh();
-  }
+  // Auto-save: qualquer alteração é salva sozinha (debounce ~800ms). Sem botão.
+  useEffect(() => {
+    if (!canEdit || !dirty) return;
+    const t = setTimeout(async () => {
+      setSaving(true);
+      const res = await updateCharacterAsPlayer(character.id, {
+        appearance,
+        portraitUrl,
+        playerNotes,
+        inventory,
+        pvAtual,
+        sanAtual,
+      });
+      setSaving(false);
+      if (res.ok) {
+        setMsg("Salvo.");
+        router.refresh();
+      } else {
+        setMsg(res.error ?? "Falha ao salvar.");
+      }
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, appearance, portraitUrl, playerNotes, pvAtual, sanAtual, invLocal]);
 
   // Usar item: aplica o efeito (PV/SAN), gasta 1 uso e SALVA automaticamente.
   async function usarItem(i: number) {
@@ -214,16 +221,12 @@ export function CharacterSheet({ character, party = [] }: Props) {
     canEdit &&
     character.propostaStatus === PROPOSTA.PENDENTE &&
     character.classe !== "OCULTISTA";
-  // Aba com campos editáveis pelo jogador → mostra a barra fixa de salvar.
-  const showSaveBar = canEdit && tab !== "attrs" && tab !== "occultism";
   // Nível 5+ sem subclasse → o jogador escolhe o rumo.
   const showSubclass =
     canEdit && character.nivel >= SUBCLASS_LEVEL && !character.subclasse;
 
   return (
-    <div
-      className={`${irreal ? "irreal rounded-md" : ""} ${showSaveBar ? "pb-24" : ""}`}
-    >
+    <div className={irreal ? "irreal rounded-md" : ""}>
       {/* Cabeçalho: classe + nível */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span
@@ -242,6 +245,11 @@ export function CharacterSheet({ character, party = [] }: Props) {
         {milestones.length > 0 && (
           <span className="typewriter text-xs text-paper/60">
             {milestones.length} habilidade(s) de marco
+          </span>
+        )}
+        {canEdit && (
+          <span className="typewriter ml-auto text-xs text-sepia">
+            {saving ? "salvando…" : dirty ? "alterações pendentes…" : msg || "✓ salvo"}
           </span>
         )}
       </div>
@@ -446,24 +454,6 @@ export function CharacterSheet({ character, party = [] }: Props) {
           <OccultismTab character={character} />
         )}
       </div>
-
-      {showSaveBar && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-sepia/40 bg-ink/90 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-            <button
-              type="button"
-              className="btn btn-primary tap"
-              onClick={save}
-              disabled={saving}
-            >
-              {saving ? "Salvando..." : "Salvar alterações"}
-            </button>
-            {msg && (
-              <span className="typewriter text-sm text-sepia">{msg}</span>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -592,10 +582,23 @@ function IdentificationTab({
   portraitUrl: string;
   setPortraitUrl: (v: string) => void;
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const travado = character.retratoTravado;
+  const isMaster = character.canEditAsMaster;
+  const podeTrocarFoto = canEdit && (isMaster || !travado);
+
+  function toggleTrava() {
+    startTransition(async () => {
+      const res = await setRetratoTravado(character.id, !travado);
+      if (res.ok) router.refresh();
+    });
+  }
+
   return (
     <div className="grid gap-6 sm:grid-cols-[160px_1fr]">
       <div>
-        <div className="paper-edge flex aspect-[3/4] items-center justify-center overflow-hidden rounded bg-black/10">
+        <div className="relative paper-edge flex aspect-[3/4] items-center justify-center overflow-hidden rounded bg-black/10">
           {portraitUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -606,15 +609,39 @@ function IdentificationTab({
           ) : (
             <FingerprintIcon className="text-5xl text-sepia/50" />
           )}
+          {isMaster ? (
+            <button
+              type="button"
+              onClick={toggleTrava}
+              disabled={pending}
+              title={travado ? "Destravar a foto" : "Travar a foto (jogador não troca)"}
+              className="absolute right-1 top-1 rounded bg-ink/80 px-1.5 py-0.5 text-sm"
+            >
+              {travado ? "🔒" : "🔓"}
+            </button>
+          ) : (
+            travado && (
+              <span
+                className="absolute right-1 top-1 rounded bg-ink/80 px-1.5 py-0.5 text-sm"
+                title="Foto travada pelo Mestre"
+              >
+                🔒
+              </span>
+            )
+          )}
         </div>
-        {canEdit && (
+        {podeTrocarFoto ? (
           <input
             className="field mt-2 text-xs"
             value={portraitUrl}
             onChange={(e) => setPortraitUrl(e.target.value)}
             placeholder="URL do retrato"
           />
-        )}
+        ) : canEdit && travado ? (
+          <p className="typewriter mt-2 text-[0.65rem] text-sepia">
+            🔒 Foto travada pelo Mestre.
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-3">
@@ -832,6 +859,7 @@ function InventoryTab({
                   dieCode={item.dano}
                   combate={combate}
                   advantage={combatente}
+                  nome={item.nome}
                 />
               ) : null}
               {canEdit && (

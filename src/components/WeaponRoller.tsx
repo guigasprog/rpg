@@ -2,19 +2,27 @@
 
 import { useState } from "react";
 import { rollDamage, type DamageResult } from "@/lib/dice";
+import { registrarRolagem } from "@/lib/actions";
 import { DiceIcon } from "@/components/icons";
 
 interface Props {
   dieCode: string;
   combate: number;
   advantage: boolean; // Combatente: rola 2× e usa o maior
+  nome?: string;
 }
 
-export function WeaponRoller({ dieCode, combate, advantage }: Props) {
+export function WeaponRoller({ dieCode, combate, advantage, nome }: Props) {
   const [res, setRes] = useState<DamageResult | null>(null);
 
   function roll() {
-    setRes(rollDamage(dieCode, combate, advantage));
+    const r = rollDamage(dieCode, combate, advantage);
+    setRes(r);
+    if (r) {
+      void registrarRolagem(
+        `🗡️ Dano${nome ? ` (${nome})` : ""} ${dieCode}+COM: [${r.rolls.join(", ")}] + ${r.combate} = ${r.total}${advantage ? " ⚔️" : ""}`,
+      );
+    }
   }
 
   return (

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { getViewer, requireMaster } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import {
@@ -11,9 +12,11 @@ import {
   getSubclass,
   MAX_LEVEL,
   OCCULTISM_MAX_LEVEL,
+  OUTCOME_LABEL,
   PROPOSTA,
   SUBCLASS_LEVEL,
 } from "@/lib/game";
+import { parseRollCommand } from "@/lib/dice";
 import { parseInventory } from "@/lib/character";
 import {
   createCharacterSchema,
@@ -115,13 +118,18 @@ export async function updateCharacterAsPlayer(
   }
   const d = parsed.data;
 
+  // Foto travada: só o Mestre troca.
+  const podeTrocarFoto = isMaster || !character.retratoTravado;
+
   // Sem clamp: PV/SAN atuais aceitam sobrevida (> máx) e negativos.
   await prisma.character.update({
     where: { id },
     data: {
       appearance: d.appearance !== undefined ? d.appearance || null : undefined,
       portraitUrl:
-        d.portraitUrl !== undefined ? d.portraitUrl || null : undefined,
+        d.portraitUrl !== undefined && podeTrocarFoto
+          ? d.portraitUrl || null
+          : undefined,
       playerNotes:
         d.playerNotes !== undefined ? d.playerNotes || null : undefined,
       inventory:
@@ -719,5 +727,139 @@ export async function setCharacterOnStage(
   });
   revalidateCharacter(id);
   revalidatePath("/manual");
+  return { ok: true, id };
+}
+
+// ---------------- Chat / Auditoria ----------------
+
+export async function enviarMensagem(texto: string): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user) return fail("Não autenticado.");
+  const autorNome = session.user.name ?? "?";
+  const autorRole = session.user.role ?? ROLES.PLAYER;
+  const t = (texto ?? "").trim();
+  if (!t) return fail("Mensagem vazia.");
+  if (t.length > 500) return fail("Mensagem muito longa.");
+
+  if (t.startsWith("!")) {
+    const ch = await prisma.character.findFirst({
+      where: { ownerId: session.user.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        attrInvestigar: true,
+        attrCombate: true,
+        attrLabia: true,
+        attrMente: true,
+      },
+    });
+    const roll = parseRollCommand(t.slice(1), ch ?? undefined);
+    if (!roll) {
+      return fail("Comando inválido. Ex.: !2d6+inv · !1d20 · !2d6+3");
+    }
+    const fim = roll.outcome ? ` — ${OUTCOME_LABEL[roll.outcome]}` : "";
+    const texto2 = `🎲 ${roll.expr}: [${roll.rolls.join(", ")}] = ${roll.total}${fim}`;
+    await prisma.message.create({
+      data: { autorNome, autorRole, tipo: "ROLL", texto: texto2, total: roll.total },
+    });
+  } else {
+    await prisma.message.create({
+      data: { autorNome, autorRole, tipo: "CHAT", texto: t },
+    });
+  }
+  return { ok: true };
+}
+
+// Registra uma rolagem feita na ficha (rolador/dano) no log da mesa.
+export async function registrarRolagem(texto: string): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user) return fail("Não autenticado.");
+  const t = (texto ?? "").trim().slice(0, 300);
+  if (!t) return fail("Vazio.");
+  await prisma.message.create({
+    data: {
+      autorNome: session.user.name ?? "?",
+      autorRole: session.user.role ?? ROLES.PLAYER,
+      tipo: "ROLL",
+      texto: t,
+    },
+  });
+  return { ok: true };
+}
+
+// ---------------- Iniciativa de combate (só GM edita) ----------------
+
+export async function addIniciativa(
+  nome: string,
+  valor: number,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const n = (nome ?? "").trim().slice(0, 80);
+  if (!n) return fail("Informe um nome.");
+  await prisma.initiativeEntry.create({
+    data: { nome: n, valor: Math.trunc(Number(valor) || 0) },
+  });
+  return { ok: true };
+}
+
+export async function removerIniciativa(id: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.initiativeEntry.delete({ where: { id } });
+  return { ok: true };
+}
+
+export async function limparIniciativa(): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.initiativeEntry.deleteMany({});
+  return { ok: true };
+}
+
+// Avança o marcador de turno para o próximo da ordem (valor desc).
+export async function avancarTurno(): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const lista = await prisma.initiativeEntry.findMany({
+    orderBy: [{ valor: "desc" }, { createdAt: "asc" }],
+  });
+  if (lista.length === 0) return { ok: true };
+  const idxAtual = lista.findIndex((e) => e.atual);
+  const prox = idxAtual < 0 ? 0 : (idxAtual + 1) % lista.length;
+  await prisma.initiativeEntry.updateMany({ data: { atual: false } });
+  await prisma.initiativeEntry.update({
+    where: { id: lista[prox].id },
+    data: { atual: true },
+  });
+  return { ok: true };
+}
+
+// GM trava/destrava a foto do personagem (jogador não troca quando travada).
+export async function setRetratoTravado(
+  id: string,
+  travado: boolean,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.character.update({
+    where: { id },
+    data: { retratoTravado: travado },
+  });
+  revalidateCharacter(id);
   return { ok: true, id };
 }

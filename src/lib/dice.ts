@@ -34,6 +34,69 @@ function rollDie(qtd: number, faces: number): number[] {
   return out;
 }
 
+// ---------------- Comando de rolagem no chat ----------------
+// Aceita: 1d6, 2d6+3, 2d6+inv, 1d20, 2d6-1 (atributos: inv/com/lab/men).
+
+export interface CommandRoll {
+  expr: string;
+  rolls: number[];
+  faces: number;
+  modifier: number;
+  modLabel: string;
+  total: number;
+  outcome: DiceOutcome | null;
+}
+
+const ATTR_MAP: Record<string, string> = {
+  inv: "attrInvestigar",
+  com: "attrCombate",
+  lab: "attrLabia",
+  men: "attrMente",
+};
+
+export function parseRollCommand(
+  cmd: string,
+  attrs?: Record<string, number>,
+): CommandRoll | null {
+  const m = /^(\d+)\s*d\s*(\d+)\s*(?:([+-])\s*(\d+|inv|com|lab|men))?$/i.exec(
+    cmd.trim(),
+  );
+  if (!m) return null;
+  const qtd = Number(m[1]);
+  const faces = Number(m[2]);
+  if (qtd < 1 || qtd > 50 || faces < 2 || faces > 1000) return null;
+
+  let modifier = 0;
+  let modLabel = "";
+  if (m[3] && m[4]) {
+    const sign = m[3] === "-" ? -1 : 1;
+    const token = m[4].toLowerCase();
+    if (/^\d+$/.test(token)) {
+      modifier = sign * Number(token);
+      modLabel = ` ${m[3]}${token}`;
+    } else {
+      const val = attrs?.[ATTR_MAP[token]] ?? 0;
+      modifier = sign * val;
+      modLabel = ` ${m[3]}${token.toUpperCase()}(${val})`;
+    }
+  }
+
+  const rolls = rollDie(qtd, faces);
+  const diceSum = rolls.reduce((s, v) => s + v, 0);
+  const total = diceSum + modifier;
+  const outcome = qtd === 2 && faces === 6 ? resolveOutcome(total) : null;
+
+  return {
+    expr: `${qtd}d${faces}${modLabel}`.trim(),
+    rolls,
+    faces,
+    modifier,
+    modLabel,
+    total,
+    outcome,
+  };
+}
+
 export interface DamageResult {
   dieCode: string;
   rolls: number[]; // dados usados (do conjunto escolhido)

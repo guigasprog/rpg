@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/session";
+import { ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { SiteHeader } from "@/components/SiteHeader";
 import { EncounterBanner } from "@/components/EncounterBanner";
+import { ChatPanel } from "@/components/ChatPanel";
+import { InitiativePanel } from "@/components/InitiativePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +53,8 @@ export default async function AppLayout({
       <footer className="typewriter border-t border-sepia/30 px-4 py-4 text-center text-xs text-paper/40">
         Arquivo Sombrio — mantenha o véu intacto.
       </footer>
+      <ChatPanel />
+      <InitiativePanel isMaster={viewer.role === ROLES.MASTER} />
     </div>
   );
 }

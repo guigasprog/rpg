@@ -27,6 +27,28 @@ model User {
   createdAt    DateTime    @default(now())
 }
 
+// Chat/auditoria da mesa: mensagens e rolagens (todos veem; GM audita).
+model Message {
+  id        String   @id @default(cuid())
+  autorNome String
+  autorRole String   @default("PLAYER") // MASTER | PLAYER
+  tipo      String   @default("CHAT") // CHAT | ROLL
+  texto     String
+  total     Int? // resultado numérico da rolagem, se houver
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Ordem de iniciativa do combate (gerida pelo Mestre).
+model InitiativeEntry {
+  id        String   @id @default(cuid())
+  nome      String
+  valor     Int      @default(0)
+  atual     Boolean  @default(false) // turno atual
+  createdAt DateTime @default(now())
+}
+
 // Livro do Mestre (entradas criadas pelo GM). Categoria: MONSTRO | LOCAL | RITUAL_PNJ
 model LoreEntry {
   id        String   @id @default(cuid())
@@ -51,6 +73,7 @@ model Character {
   owner       User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   arquivado   Boolean @default(false) // dossiê inativo (invisível ao jogador)
   mostrarNaMesa Boolean @default(false) // exibe o retrato na tela de todos
+  retratoTravado Boolean @default(false) // trava a foto (jogador não troca)
   portraitUrl String?
   occupation  String?
   appearance  String?

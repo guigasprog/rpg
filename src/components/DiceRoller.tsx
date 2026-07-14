@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { roll2d6, type RollResult } from "@/lib/dice";
 import { ATTRIBUTES, OUTCOME_LABEL } from "@/lib/game";
+import { registrarRolagem } from "@/lib/actions";
 import { DiceIcon } from "@/components/icons";
 
 interface Props {
@@ -33,16 +34,24 @@ export function DiceRoller({ attrs, focos = [] }: Props) {
 
   function doRoll(key: string, label: string) {
     const mod = attrs[key as keyof typeof attrs] ?? 0;
-    setResult(roll2d6(mod));
+    const r = roll2d6(mod);
+    setResult(r);
     setUsed(label);
     setLastKey(key);
+    void registrarRolagem(
+      `🎲 ${label} (2d6 ${fmt(mod)}): [${r.dice.join(", ")}] = ${r.total} — ${OUTCOME_LABEL[r.outcome]}`,
+    );
   }
 
   function rerolar() {
     if (!rerrolagemOk) return;
     const mod = attrs[lastKey as keyof typeof attrs] ?? 0;
-    setResult(roll2d6(mod));
+    const r = roll2d6(mod);
+    setResult(r);
     setRerrolagemOk(false);
+    void registrarRolagem(
+      `🎲 ${used} rerrolado (foco): [${r.dice.join(", ")}] = ${r.total} — ${OUTCOME_LABEL[r.outcome]}`,
+    );
   }
 
   const temFoco = focos.length > 0;
