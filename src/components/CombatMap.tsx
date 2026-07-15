@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  addIniciativa,
   addMapTokenCustom,
   addMapTokenFromLore,
   addMyToken,
@@ -198,6 +199,7 @@ export function CombatMap({
     moved?: boolean;
   } | null>(null);
   const pinnedRef = useRef<Set<string>>(new Set());
+  const lastTurnoRef = useRef<string | null>(null);
 
   const puxar = useCallback(async () => {
     try {
@@ -270,6 +272,30 @@ export function CombatMap({
     },
     [puxar],
   );
+
+  // Foca (centraliza) o token de quem está no turno quando o turno muda.
+  useEffect(() => {
+    const turno = data.turno;
+    if (!turno || turno === lastTurnoRef.current) return;
+    lastTurnoRef.current = turno;
+    const alvo = turno.trim().toLowerCase();
+    const t = data.tokens.find(
+      (x) => x.nome.trim() !== "" && x.nome.trim().toLowerCase() === alvo,
+    );
+    const el = wrapRef.current;
+    if (!t || !el) return;
+    const p = pos[t.id] ?? { x: t.x, y: t.y };
+    const size = t.size > 0 ? t.size : cell;
+    const cx = p.x + size / 2;
+    const cy = p.y + size / 2;
+    const rect = el.getBoundingClientRect();
+    setView((v) => ({
+      ...v,
+      tx: rect.width / 2 - cx * v.scale,
+      ty: rect.height / 2 - cy * v.scale,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.turno, data.tokens, cell]);
 
   // Trava a rolagem da página enquanto a ficha rápida está aberta (o conteúdo
   // do próprio painel continua rolando).
@@ -386,6 +412,11 @@ export function CombatMap({
 
   function onDownToken(e: React.PointerEvent, t: Token) {
     e.stopPropagation();
+    // Ctrl+Shift+clique: põe o token na ordem de combate (Mestre).
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+      if (isMaster && t.nome.trim()) void run(() => addIniciativa(t.nome, 0));
+      return;
+    }
     // Ctrl+clique: amplia a imagem do token.
     if (e.ctrlKey || e.metaKey) {
       if (t.imageUrl) setZoomUrl(t.imageUrl);
@@ -801,8 +832,11 @@ export function CombatMap({
           remove; a alça ◢ redimensiona (segure <strong>Shift</strong> para
           tamanho livre); os pontos e ícones acima do token mudam lado e status.
           Duplo-clique abre a ficha rápida; Ctrl+clique amplia a imagem.{" "}
-          {isMaster ? "Ctrl+C / Ctrl+V copia e cola. " : ""}A roda do mouse dá
-          zoom só sobre o mapa.
+          {isMaster
+            ? "Ctrl+Shift+clique põe na iniciativa; Ctrl+C / Ctrl+V copia e cola. "
+            : ""}
+          A câmera foca quem está no turno. A roda do mouse dá zoom só sobre o
+          mapa.
         </p>
         {erro && <p className="typewriter text-xs text-stamp">{erro}</p>}
       </aside>
@@ -907,7 +941,7 @@ export function CombatMap({
                   className={`absolute select-none ${meu ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                 >
                   <div
-                    className={`token relative h-full w-full overflow-hidden rounded-full ${ehTurno ? "turno-pulse" : ""} ${t.status === "MORTO" ? "brightness-[0.45]" : ""}`}
+                    className={`token relative h-full w-full overflow-hidden rounded-full ${ehTurno ? "turno-pulse" : ""}`}
                     style={{ boxShadow: ringos.join(", ") }}
                   >
                     {t.imageUrl ? (
@@ -922,6 +956,16 @@ export function CombatMap({
                       <span className="flex h-full w-full items-center justify-center bg-sepia-ink text-paper-light">
                         {t.nome.slice(0, 2) || "?"}
                       </span>
+                    )}
+                    {t.status === "MORTO" && (
+                      <span
+                        className="pointer-events-none absolute inset-0"
+                        style={{
+                          background:
+                            "radial-gradient(circle at 50% 45%, rgba(176,51,44,0.35), rgba(90,10,10,0.72))",
+                          mixBlendMode: "multiply",
+                        }}
+                      />
                     )}
                   </div>
 

@@ -656,16 +656,3 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .turno-pulse { animation: none; }
 }
-
-/* Noir avermelhado: casto vermelho por cima do preto-e-branco. */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 48;
-  pointer-events: none;
-  mix-blend-mode: multiply;
-  background:
-    radial-gradient(circle at 50% 32%, rgba(150, 30, 25, 0.3), transparent 72%),
-    linear-gradient(180deg, rgba(96, 12, 12, 0.26), rgba(38, 0, 0, 0.42));
-}

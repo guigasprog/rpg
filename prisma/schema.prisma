@@ -138,6 +138,13 @@ model EvidenceLink {
   @@index([toId])
 }
 
+// Estado do combate (singleton "main"): conta os turnos passados — usado para
+// intensificar o "noir avermelhado" conforme o combate avança.
+model Combat {
+  id     String @id @default("main")
+  turnos Int    @default(0)
+}
+
 // Ordem de iniciativa do combate (gerida pelo Mestre).
 model InitiativeEntry {
   id        String   @id @default(cuid())
