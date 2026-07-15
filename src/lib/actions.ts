@@ -1168,11 +1168,13 @@ export async function addMapTokenCustom(
   const map = await ensureMap();
   const count = await prisma.mapToken.count();
   const temPos = x !== undefined && y !== undefined;
+  // Sem nome → entra como inimigo.
+  const ladoFinal = n === "" ? "INIMIGO" : LADOS_VALIDOS.includes(lado) ? lado : "INIMIGO";
   await prisma.mapToken.create({
     data: {
       nome: n,
       imageUrl: (imageUrl ?? "").trim() || null,
-      lado: LADOS_VALIDOS.includes(lado) ? lado : "INIMIGO",
+      lado: ladoFinal,
       x: temPos ? Math.trunc(x!) || 0 : (count % 8) * map.cell,
       y: temPos ? Math.trunc(y!) || 0 : Math.floor(count / 8) * map.cell,
     },

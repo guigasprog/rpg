@@ -148,8 +148,15 @@ export function CombatMap({
     },
   );
   const [view, setView] = useState({ scale: 1, tx: 24, ty: 24 });
-  const [sel, setSel] = useState<string | null>(null);
+  const [selIds, setSelIds] = useState<Set<string>>(new Set());
+  const [marquee, setMarquee] = useState<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [qtd, setQtd] = useState(1);
@@ -188,7 +195,7 @@ export function CombatMap({
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
-    kind: "pan" | "token" | "resize";
+    kind: "pan" | "token" | "resize" | "marquee";
     id?: string;
     canMove?: boolean;
     startX: number;
@@ -197,6 +204,8 @@ export function CombatMap({
     oy: number;
     osize?: number;
     moved?: boolean;
+    shift?: boolean;
+    origPos?: Record<string, { x: number; y: number }>;
   } | null>(null);
   const pinnedRef = useRef<Set<string>>(new Set());
   const lastTurnoRef = useRef<string | null>(null);
@@ -314,18 +323,19 @@ export function CombatMap({
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (!sel) return;
-      const tk = data.tokens.find((t) => t.id === sel);
-      if (!tk) return;
-      if (!(isMaster || tk.ownerId === data.viewerId)) return;
+      if (selIds.size === 0) return;
+      const alvos = data.tokens.filter(
+        (t) =>
+          selIds.has(t.id) && (isMaster || t.ownerId === data.viewerId),
+      );
+      if (alvos.length === 0) return;
       e.preventDefault();
-      const id = sel;
-      setSel(null);
-      void run(() => removeMapToken(id));
+      setSelIds(new Set());
+      alvos.forEach((t) => void run(() => removeMapToken(t.id)));
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sel, data, isMaster, run]);
+  }, [selIds, data, isMaster, run]);
 
   // Ctrl+C / Ctrl+V: copiar e colar token (Mestre).
   useEffect(() => {
@@ -335,8 +345,9 @@ export function CombatMap({
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       const k = e.key.toLowerCase();
-      if (k === "c" && sel) {
-        const t = data.tokens.find((x) => x.id === sel);
+      if (k === "c" && selIds.size === 1) {
+        const only = [...selIds][0];
+        const t = data.tokens.find((x) => x.id === only);
         if (!t) return;
         const p = pos[t.id] ?? { x: t.x, y: t.y };
         setClip({
@@ -367,7 +378,7 @@ export function CombatMap({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isMaster, sel, data, pos, sizes, clip, cell, run]);
+  }, [isMaster, selIds, data, pos, sizes, clip, cell, run]);
 
   // Arrastar um card (personagem/monstro) e soltar no mapa — pointer capture
   // no próprio card garante que o "puxar" funcione até soltar.
@@ -411,6 +422,8 @@ export function CombatMap({
   }
 
   function onDownToken(e: React.PointerEvent, t: Token) {
+    // Botão direito sobre o token → não intercepta; deixa o fundo panear.
+    if (e.button === 2 || e.button === 1) return;
     e.stopPropagation();
     // Ctrl+Shift+clique: põe o token na ordem de combate (Mestre).
     if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
@@ -425,6 +438,17 @@ export function CombatMap({
     const canMove = isMaster || t.ownerId === data.viewerId;
     if (canMove) (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     const p = pos[t.id] ?? { x: t.x, y: t.y };
+    // Move em grupo: se o token faz parte de uma seleção múltipla, arrasta
+    // todos os selecionados que você controla.
+    const grupo =
+      selIds.has(t.id) && selIds.size > 1
+        ? data.tokens.filter(
+            (x) =>
+              selIds.has(x.id) && (isMaster || x.ownerId === data.viewerId),
+          )
+        : [t];
+    const origPos: Record<string, { x: number; y: number }> = {};
+    grupo.forEach((x) => (origPos[x.id] = pos[x.id] ?? { x: x.x, y: x.y }));
     dragRef.current = {
       kind: "token",
       id: t.id,
@@ -434,18 +458,36 @@ export function CombatMap({
       ox: p.x,
       oy: p.y,
       moved: false,
+      shift: e.shiftKey,
+      origPos,
     };
   }
 
   function onDownBg(e: React.PointerEvent) {
-    setSel(null);
+    // Botão direito (ou toque) → arrasta o tabuleiro. Esquerdo (mouse) → caixa
+    // de seleção múltipla.
+    const panear = e.button === 2 || e.button === 1 || e.pointerType === "touch";
+    if (panear) {
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      dragRef.current = {
+        kind: "pan",
+        startX: e.clientX,
+        startY: e.clientY,
+        ox: view.tx,
+        oy: view.ty,
+      };
+      return;
+    }
+    if (!e.shiftKey) setSelIds(new Set());
     dragRef.current = {
-      kind: "pan",
+      kind: "marquee",
       startX: e.clientX,
       startY: e.clientY,
-      ox: view.tx,
-      oy: view.ty,
+      ox: 0,
+      oy: 0,
+      shift: e.shiftKey,
     };
+    setMarquee({ x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY });
   }
 
   function onDownResize(e: React.PointerEvent, t: Token) {
@@ -471,12 +513,23 @@ export function CombatMap({
         tx: d.ox + (e.clientX - d.startX),
         ty: d.oy + (e.clientY - d.startY),
       }));
+    } else if (d.kind === "marquee") {
+      setMarquee((mq) =>
+        mq ? { ...mq, x1: e.clientX, y1: e.clientY } : mq,
+      );
     } else if (d.kind === "token" && d.id && d.canMove) {
       if (Math.abs(e.clientX - d.startX) > 2 || Math.abs(e.clientY - d.startY) > 2)
         d.moved = true;
+      d.shift = e.shiftKey; // Shift ao mover = posição livre (sem encaixe)
       const { dx, dy } = worldDelta(e.clientX - d.startX, e.clientY - d.startY);
-      const id = d.id;
-      setPos((m) => ({ ...m, [id]: { x: d.ox + dx, y: d.oy + dy } }));
+      const orig = d.origPos ?? {};
+      setPos((m) => {
+        const next = { ...m };
+        for (const id of Object.keys(orig)) {
+          next[id] = { x: orig[id].x + dx, y: orig[id].y + dy };
+        }
+        return next;
+      });
     } else if (d.kind === "resize" && d.id) {
       const delta =
         Math.max(e.clientX - d.startX, e.clientY - d.startY) / view.scale;
@@ -493,20 +546,59 @@ export function CombatMap({
   function onUp() {
     const d = dragRef.current;
     dragRef.current = null;
+    if (d?.kind === "marquee") {
+      const mq = marquee;
+      setMarquee(null);
+      const el = wrapRef.current;
+      if (mq && el) {
+        const rect = el.getBoundingClientRect();
+        const minX = Math.min(mq.x0, mq.x1);
+        const maxX = Math.max(mq.x0, mq.x1);
+        const minY = Math.min(mq.y0, mq.y1);
+        const maxY = Math.max(mq.y0, mq.y1);
+        const dentro = new Set<string>(d.shift ? selIds : []);
+        for (const t of data.tokens) {
+          const p = pos[t.id] ?? { x: t.x, y: t.y };
+          const size = t.size > 0 ? t.size : cell;
+          const scx = rect.left + view.tx + (p.x + size / 2) * view.scale;
+          const scy = rect.top + view.ty + (p.y + size / 2) * view.scale;
+          if (scx >= minX && scx <= maxX && scy >= minY && scy <= maxY)
+            dentro.add(t.id);
+        }
+        setSelIds(dentro);
+      }
+      return;
+    }
     if (d?.kind === "token" && d.id) {
       if (d.canMove && d.moved) {
-        const p = pos[d.id];
-        if (p) {
-          const sx = Math.round(p.x / cell) * cell;
-          const sy = Math.round(p.y / cell) * cell;
-          const id = d.id;
-          setPos((m) => ({ ...m, [id]: { x: sx, y: sy } }));
-          pinnedRef.current.add(id);
-          setTimeout(() => pinnedRef.current.delete(id), 6000);
-          void run(() => moveMapToken(id, sx, sy));
-        }
+        const orig = d.origPos ?? {};
+        const livre = d.shift; // Shift = ignora o encaixe na grade
+        setPos((m) => {
+          const next = { ...m };
+          for (const id of Object.keys(orig)) {
+            const p = next[id];
+            if (!p) continue;
+            const sx = livre ? Math.round(p.x) : Math.round(p.x / cell) * cell;
+            const sy = livre ? Math.round(p.y) : Math.round(p.y / cell) * cell;
+            next[id] = { x: sx, y: sy };
+            pinnedRef.current.add(id);
+            setTimeout(() => pinnedRef.current.delete(id), 6000);
+            void run(() => moveMapToken(id, sx, sy));
+          }
+          return next;
+        });
       } else {
-        setSel(d.id); // clique curto → seleciona
+        // clique curto → seleciona (Shift alterna dentro do conjunto)
+        const id = d.id;
+        setSelIds((prev) => {
+          if (d.shift) {
+            const n = new Set(prev);
+            if (n.has(id)) n.delete(id);
+            else n.add(id);
+            return n;
+          }
+          return new Set([id]);
+        });
       }
     } else if (d?.kind === "resize" && d.id) {
       const id = d.id;
@@ -828,10 +920,12 @@ export function CombatMap({
           ))}
         </div>
         <p className="typewriter text-[0.7rem] text-paper/45">
-          Arraste para o mapa. Clique para selecionar: <strong>Delete</strong>{" "}
-          remove; a alça ◢ redimensiona (segure <strong>Shift</strong> para
-          tamanho livre); os pontos e ícones acima do token mudam lado e status.
-          Duplo-clique abre a ficha rápida; Ctrl+clique amplia a imagem.{" "}
+          <strong>Botão direito</strong> arrasta o tabuleiro; arrastar com o{" "}
+          <strong>esquerdo</strong> faz uma caixa de seleção (vários tokens).
+          Arraste um token para mover (segure <strong>Shift</strong> para soltar
+          em qualquer lugar, sem grade). <strong>Delete</strong> remove os
+          selecionados; a alça ◢ redimensiona. Duplo-clique abre a ficha rápida;
+          Ctrl+clique amplia a imagem.{" "}
           {isMaster
             ? "Ctrl+Shift+clique põe na iniciativa; Ctrl+C / Ctrl+V copia e cola. "
             : ""}
@@ -877,6 +971,7 @@ export function CombatMap({
           onPointerUp={onUp}
           onPointerLeave={onUp}
           onDoubleClick={(e) => e.preventDefault()}
+          onContextMenu={(e) => e.preventDefault()}
           className={`quadro relative h-[80vh] w-full touch-none select-none overflow-hidden rounded-md ${placing ? "ring-2 ring-stamp-bright" : ""}`}
         >
           <div
@@ -925,8 +1020,10 @@ export function CombatMap({
                 t.nome.trim() !== "" &&
                 t.nome.trim().toLowerCase() === data.turno.trim().toLowerCase();
               const tsize = sizes[t.id] ?? (t.size > 0 ? t.size : cell);
+              const isSel = selIds.has(t.id);
+              const controles = isSel && selIds.size === 1 && meu;
               const ringos = [`0 0 0 3px ${ladoCor(t.lado)}`];
-              if (sel === t.id) ringos.push("0 0 0 6px rgba(231,220,196,0.9)");
+              if (isSel) ringos.push("0 0 0 6px rgba(231,220,196,0.9)");
               if (ehTurno) ringos.push("0 0 18px 5px rgba(224,192,96,0.9)");
               const icone = statusIcone(t.status);
               return (
@@ -984,7 +1081,7 @@ export function CombatMap({
                   )}
 
                   {/* Alça de redimensionar */}
-                  {sel === t.id && meu && (
+                  {controles && (
                     <span
                       onPointerDown={(e) => onDownResize(e, t)}
                       className="absolute -bottom-1 -right-1 h-4 w-4 cursor-nwse-resize rounded-sm bg-paper-light text-center text-[0.6rem] leading-4 text-ink"
@@ -994,14 +1091,14 @@ export function CombatMap({
                     </span>
                   )}
 
-                  {/* Picker de lado + status (token selecionado) */}
-                  {sel === t.id && meu && (
+                  {/* Picker de lado + botão de status (token selecionado) */}
+                  {controles && (
                     <div
                       onPointerDown={(e) => e.stopPropagation()}
                       className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center gap-1"
                       style={{ top: -tsize * 0.5 - 22 }}
                     >
-                      <div className="flex gap-1 rounded-full bg-ink/90 px-1.5 py-1 shadow">
+                      <div className="flex items-center gap-1 rounded-full bg-ink/90 px-1.5 py-1 shadow">
                         {LADOS.map((l) => (
                           <button
                             key={l.key}
@@ -1019,24 +1116,37 @@ export function CombatMap({
                             }}
                           />
                         ))}
+                        <span className="mx-0.5 h-3.5 w-px bg-paper/25" />
+                        <button
+                          type="button"
+                          onClick={() => setStatusOpen((o) => !o)}
+                          title="Status/efeito"
+                          className={`flex h-4 w-4 items-center justify-center rounded-full text-[0.6rem] leading-none ${statusOpen ? "bg-stamp/50" : "bg-paper/15"}`}
+                        >
+                          {statusIcone(t.status) || "⚑"}
+                        </button>
                       </div>
-                      <div className="flex max-w-[168px] flex-wrap justify-center gap-0.5 rounded bg-ink/90 px-1 py-0.5 shadow">
-                        {STATUS.map((s) => (
-                          <button
-                            key={s.key || "none"}
-                            type="button"
-                            onClick={() => run(() => setTokenStatus(t.id, s.key))}
-                            title={s.label}
-                            className={`h-5 w-5 rounded text-xs leading-5 ${t.status === s.key ? "bg-stamp/40" : ""}`}
-                          >
-                            {s.icone || "∅"}
-                          </button>
-                        ))}
-                      </div>
+                      {statusOpen && (
+                        <div className="flex max-w-[168px] flex-wrap justify-center gap-0.5 rounded bg-ink/90 px-1 py-0.5 shadow">
+                          {STATUS.map((s) => (
+                            <button
+                              key={s.key || "none"}
+                              type="button"
+                              onClick={() =>
+                                run(() => setTokenStatus(t.id, s.key))
+                              }
+                              title={s.label}
+                              className={`h-5 w-5 rounded text-xs leading-5 ${t.status === s.key ? "bg-stamp/40" : ""}`}
+                            >
+                              {s.icone || "∅"}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {ehTurno && sel !== t.id && (
+                  {ehTurno && !isSel && (
                     <div
                       className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 font-bold text-ink"
                       style={{
@@ -1062,6 +1172,19 @@ export function CombatMap({
           </div>
         </div>
       </div>
+
+      {/* Caixa de seleção múltipla */}
+      {marquee && (
+        <div
+          className="pointer-events-none fixed z-[80] border border-stamp-bright bg-stamp/10"
+          style={{
+            left: Math.min(marquee.x0, marquee.x1),
+            top: Math.min(marquee.y0, marquee.y1),
+            width: Math.abs(marquee.x1 - marquee.x0),
+            height: Math.abs(marquee.y1 - marquee.y0),
+          }}
+        />
+      )}
 
       {/* Fantasma do card sendo arrastado */}
       {placing && ghost && (
