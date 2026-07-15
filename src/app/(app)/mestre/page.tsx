@@ -83,6 +83,9 @@ export default async function MasterDashboard() {
           <Link href="/mestre/livro" className="btn btn-primary tap text-xs">
             📖 Livro das Monstruosidades
           </Link>
+          <Link href="/mestre/provas" className="btn btn-dark tap text-xs">
+            🕵️ Mural de Provas
+          </Link>
           <Link href="/manual" className="btn btn-dark tap text-xs">
             📰 Manual da mesa
           </Link>

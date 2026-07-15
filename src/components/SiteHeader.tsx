@@ -24,6 +24,9 @@ export async function SiteHeader() {
               <MagnifierIcon /> Dossiês
             </span>
           </Link>
+          <Link href="/provas" className="btn btn-ghost tap text-xs">
+            Provas
+          </Link>
           <Link href="/manual" className="btn btn-ghost tap text-xs">
             Manual
           </Link>

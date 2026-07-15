@@ -136,6 +136,12 @@ export const occultOfferSchema = z.object({
   texto: z.string().trim().min(1, "Escreva o convite do Além.").max(2000),
 });
 
+export const evidenceSchema = z.object({
+  titulo: z.string().trim().min(1, "Título obrigatório.").max(160),
+  descricao: z.string().trim().max(4000).optional().or(z.literal("")),
+  imagemUrl: z.string().trim().max(2000).optional().or(z.literal("")),
+});
+
 export const loreEntrySchema = z.object({
   categoria: z.enum(["MONSTRO", "LOCAL", "RITUAL_PNJ"]),
   titulo: z.string().trim().min(1, "Título obrigatório.").max(160),

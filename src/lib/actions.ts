@@ -22,6 +22,7 @@ import { parseInventory, parseStringArray } from "@/lib/character";
 import {
   createCharacterSchema,
   createPlayerSchema,
+  evidenceSchema,
   loreEntrySchema,
   masterUpdateSchema,
   occultOfferSchema,
@@ -759,6 +760,86 @@ export async function setCharacterOnStage(
   revalidateCharacter(id);
   revalidatePath("/mestre");
   revalidatePath("/manual");
+  return { ok: true, id };
+}
+
+// ---------------- Mural de Provas / Pistas ----------------
+
+function revalidateProvas() {
+  revalidatePath("/mestre/provas");
+  revalidatePath("/provas");
+}
+
+export async function createEvidence(input: unknown): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const parsed = evidenceSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
+  }
+  const { titulo, descricao, imagemUrl } = parsed.data;
+  const ev = await prisma.evidence.create({
+    data: {
+      titulo,
+      descricao: descricao || "",
+      imagemUrl: imagemUrl || null,
+    },
+  });
+  revalidateProvas();
+  return { ok: true, id: ev.id };
+}
+
+export async function updateEvidence(
+  id: string,
+  input: unknown,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const parsed = evidenceSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "Dados inválidos.");
+  }
+  const { titulo, descricao, imagemUrl } = parsed.data;
+  await prisma.evidence.update({
+    where: { id },
+    data: {
+      titulo,
+      descricao: descricao || "",
+      imagemUrl: imagemUrl || null,
+    },
+  });
+  revalidateProvas();
+  return { ok: true, id };
+}
+
+export async function deleteEvidence(id: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.evidence.delete({ where: { id } });
+  revalidateProvas();
+  return { ok: true };
+}
+
+export async function setEvidenceRevealed(
+  id: string,
+  revelado: boolean,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.evidence.update({ where: { id }, data: { revelado } });
+  revalidateProvas();
   return { ok: true, id };
 }
 
