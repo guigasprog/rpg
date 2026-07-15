@@ -961,13 +961,45 @@ export async function aplicarCondicoesTick(id: string): Promise<ActionResult> {
 export async function enviarMensagem(texto: string): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return fail("Não autenticado.");
+  const autorId = session.user.id ?? null;
   const autorNome = session.user.name ?? "?";
   const autorRole = session.user.role ?? ROLES.PLAYER;
   const t = (texto ?? "").trim();
   if (!t) return fail("Mensagem vazia.");
   if (t.length > 500) return fail("Mensagem muito longa.");
 
+  // Sussurro: "@usuario mensagem" ou "/w usuario mensagem" (privado ao alvo).
+  const whisper = t.match(/^(?:@|\/w\s+)(\S+)\s+([\s\S]+)$/);
+  if (whisper) {
+    const alvoNome = whisper[1];
+    const corpo = whisper[2].trim();
+    if (!corpo) return fail("Escreva a mensagem do sussurro.");
+    const alvo = await prisma.user.findUnique({
+      where: { username: alvoNome },
+      select: { id: true, username: true },
+    });
+    if (!alvo) return fail(`Usuário "@${alvoNome}" não encontrado.`);
+    await prisma.message.create({
+      data: {
+        autorNome,
+        autorRole,
+        autorId,
+        tipo: "CHAT",
+        texto: `🤫 (para @${alvo.username}) ${corpo}`,
+        destinoUserId: alvo.id,
+      },
+    });
+    return { ok: true };
+  }
+
   if (t.startsWith("!")) {
+    // Rolagem oculta: "!s..." (só o Mestre e o autor veem).
+    let rest = t.slice(1);
+    let secreta = false;
+    if (rest[0] === "s" || rest[0] === "S") {
+      secreta = true;
+      rest = rest.slice(1).trim();
+    }
     const ch = await prisma.character.findFirst({
       where: { ownerId: session.user.id },
       orderBy: { createdAt: "asc" },
@@ -978,18 +1010,27 @@ export async function enviarMensagem(texto: string): Promise<ActionResult> {
         attrMente: true,
       },
     });
-    const roll = parseRollCommand(t.slice(1), ch ?? undefined);
+    const roll = parseRollCommand(rest, ch ?? undefined);
     if (!roll) {
-      return fail("Comando inválido. Ex.: !2d6+inv · !1d20 · !2d6+3");
+      return fail("Comando inválido. Ex.: !2d6+inv · !1d20 · !2d6+3 · !s2d6");
     }
     const fim = roll.outcome ? ` — ${OUTCOME_LABEL[roll.outcome]}` : "";
-    const texto2 = `🎲 ${roll.expr}: [${roll.rolls.join(", ")}] = ${roll.total}${fim}`;
+    const selo = secreta ? "🔒 " : "🎲 ";
+    const texto2 = `${selo}${roll.expr}: [${roll.rolls.join(", ")}] = ${roll.total}${fim}`;
     await prisma.message.create({
-      data: { autorNome, autorRole, tipo: "ROLL", texto: texto2, total: roll.total },
+      data: {
+        autorNome,
+        autorRole,
+        autorId,
+        tipo: "ROLL",
+        texto: texto2,
+        total: roll.total,
+        secreta,
+      },
     });
   } else {
     await prisma.message.create({
-      data: { autorNome, autorRole, tipo: "CHAT", texto: t },
+      data: { autorNome, autorRole, autorId, tipo: "CHAT", texto: t },
     });
   }
   return { ok: true };

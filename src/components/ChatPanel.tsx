@@ -77,7 +77,7 @@ export function ChatPanel() {
           <div className="border-b border-sepia/30 px-3 py-2">
             <p className="display text-sm text-paper-light">Mesa — chat & dados</p>
             <p className="typewriter text-[0.6rem] text-paper/50">
-              Role dados: !2d6+inv · !1d20 · !2d6+3
+              Dados: !2d6+inv · !1d20 · oculto: !s2d6 · sussurro: @usuário ...
             </p>
           </div>
 
@@ -91,7 +91,13 @@ export function ChatPanel() {
               <div
                 key={m.id}
                 className={`typewriter text-xs ${
-                  m.tipo === "ROLL" ? "text-emerald-300" : "text-paper"
+                  m.texto.startsWith("🔒")
+                    ? "text-amber-300"
+                    : m.texto.startsWith("🤫")
+                      ? "italic text-violet-300"
+                      : m.tipo === "ROLL"
+                        ? "text-emerald-300"
+                        : "text-paper"
                 }`}
               >
                 <span
