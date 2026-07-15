@@ -35,8 +35,13 @@ export default async function ProvasMestrePage() {
         <h1 className="display text-3xl text-sepia-ink">Mural de Provas</h1>
         <p className="typewriter text-sm text-sepia">
           Catalogue pistas, documentos e fotos. Revele à mesa quando os
-          investigadores encontrarem — elas aparecem no mural de todos.
+          investigadores encontrarem — elas aparecem no quadro de todos.
         </p>
+        <div className="mt-3">
+          <Link href="/provas" className="btn btn-dark tap text-xs">
+            Abrir o quadro interativo
+          </Link>
+        </div>
       </header>
 
       <MuralDeProvas entries={entries} />

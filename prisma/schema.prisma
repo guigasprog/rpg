@@ -44,20 +44,7 @@ model Message {
   @@index([createdAt])
 }
 
-// Mural de Provas / Pistas — evidências que o Mestre revela à mesa.
-model Evidence {
-  id        String   @id @default(cuid())
-  titulo    String
-  descricao String   @default("")
-  imagemUrl String?
-  revelado  Boolean  @default(false) // visível aos jogadores
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([revelado])
-}
-
-// Narração ao vivo — cartão de texto que o Mestre exibe na tela de todos.
+// (obsoleto) Narração ao vivo — removida da UI; tabela mantida por ora.
 model Broadcast {
   id        String   @id @default(cuid())
   texto     String
@@ -65,6 +52,57 @@ model Broadcast {
   createdAt DateTime @default(now())
 
   @@index([ativo])
+}
+
+// Mural de Provas / Pistas — quadro de investigação (corkboard) colaborativo.
+model Evidence {
+  id        String  @id @default(cuid())
+  titulo    String
+  descricao String  @default("")
+  imagemUrl String?
+  revelado  Boolean @default(false) // visível aos jogadores no quadro
+
+  // Posição no quadro (coordenadas do canvas, colaborativas).
+  x Int @default(0)
+  y Int @default(0)
+
+  notas     EvidenceNote[]
+  linksDe   EvidenceLink[] @relation("linkFrom")
+  linksPara EvidenceLink[] @relation("linkTo")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([revelado])
+}
+
+// Anotação em uma prova (compartilhada entre a mesa; acrescenta ou desmente).
+model EvidenceNote {
+  id         String   @id @default(cuid())
+  evidenceId String
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  autorId    String?
+  autorNome  String
+  texto      String
+  contra     Boolean  @default(false) // true = desmente/contradiz
+  createdAt  DateTime @default(now())
+
+  @@index([evidenceId])
+}
+
+// Ligação entre duas provas ("barbante") para amarrar um fato.
+model EvidenceLink {
+  id        String   @id @default(cuid())
+  fromId    String
+  toId      String
+  from      Evidence @relation("linkFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to        Evidence @relation("linkTo", fields: [toId], references: [id], onDelete: Cascade)
+  label     String   @default("") // o fato/afirmação que a ligação prova
+  autorId   String?
+  createdAt DateTime @default(now())
+
+  @@index([fromId])
+  @@index([toId])
 }
 
 // Ordem de iniciativa do combate (gerida pelo Mestre).

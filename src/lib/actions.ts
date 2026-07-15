@@ -763,43 +763,6 @@ export async function setCharacterOnStage(
   return { ok: true, id };
 }
 
-// ---------------- Narração ao vivo ----------------
-
-// GM exibe um cartão de narração na tela de todos (substitui o anterior).
-export async function enviarNarracao(texto: string): Promise<ActionResult> {
-  try {
-    await requireMaster();
-  } catch (e) {
-    return fail((e as Error).message);
-  }
-  const t = (texto ?? "").trim();
-  if (!t) return fail("Escreva a narração.");
-  if (t.length > 1000) return fail("Narração muito longa.");
-  await prisma.$transaction([
-    prisma.broadcast.updateMany({
-      where: { ativo: true },
-      data: { ativo: false },
-    }),
-    prisma.broadcast.create({ data: { texto: t, ativo: true } }),
-  ]);
-  revalidatePath("/mestre");
-  return { ok: true };
-}
-
-export async function limparNarracao(): Promise<ActionResult> {
-  try {
-    await requireMaster();
-  } catch (e) {
-    return fail((e as Error).message);
-  }
-  await prisma.broadcast.updateMany({
-    where: { ativo: true },
-    data: { ativo: false },
-  });
-  revalidatePath("/mestre");
-  return { ok: true };
-}
-
 // ---------------- Mural de Provas / Pistas ----------------
 
 function revalidateProvas() {
@@ -878,6 +841,134 @@ export async function setEvidenceRevealed(
   await prisma.evidence.update({ where: { id }, data: { revelado } });
   revalidateProvas();
   return { ok: true, id };
+}
+
+// --- Quadro interativo (colaborativo: Mestre e jogadores) ---
+
+// Só provas reveladas ficam no quadro; o Mestre pode agir mesmo nas ocultas.
+async function podeMexerNoQuadro(evidenceId: string, isMaster: boolean) {
+  const ev = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { revelado: true },
+  });
+  if (!ev) return false;
+  return isMaster || ev.revelado;
+}
+
+export async function moveEvidence(
+  id: string,
+  x: number,
+  y: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!(await podeMexerNoQuadro(id, isMaster))) return fail("Sem permissão.");
+  await prisma.evidence.update({
+    where: { id },
+    data: { x: Math.trunc(Number(x) || 0), y: Math.trunc(Number(y) || 0) },
+  });
+  revalidateProvas();
+  return { ok: true, id };
+}
+
+export async function addEvidenceNote(
+  evidenceId: string,
+  texto: string,
+  contra: boolean,
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user) return fail("Não autenticado.");
+  const isMaster = session.user.role === ROLES.MASTER;
+  if (!(await podeMexerNoQuadro(evidenceId, isMaster)))
+    return fail("Sem permissão.");
+  const t = (texto ?? "").trim();
+  if (!t) return fail("Escreva a anotação.");
+  if (t.length > 1000) return fail("Anotação muito longa.");
+  await prisma.evidenceNote.create({
+    data: {
+      evidenceId,
+      autorId: session.user.id ?? null,
+      autorNome: session.user.name ?? "?",
+      texto: t,
+      contra: !!contra,
+    },
+  });
+  revalidateProvas();
+  return { ok: true };
+}
+
+export async function deleteEvidenceNote(id: string): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const nota = await prisma.evidenceNote.findUnique({ where: { id } });
+  if (!nota) return fail("Anotação não encontrada.");
+  if (viewer.role !== ROLES.MASTER && nota.autorId !== viewer.id)
+    return fail("Só o autor ou o Mestre pode apagar.");
+  await prisma.evidenceNote.delete({ where: { id } });
+  revalidateProvas();
+  return { ok: true };
+}
+
+export async function linkEvidence(
+  fromId: string,
+  toId: string,
+  label: string,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  if (fromId === toId) return fail("Ligue duas provas diferentes.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (
+    !(await podeMexerNoQuadro(fromId, isMaster)) ||
+    !(await podeMexerNoQuadro(toId, isMaster))
+  )
+    return fail("Sem permissão.");
+  const existe = await prisma.evidenceLink.findFirst({
+    where: {
+      OR: [
+        { fromId, toId },
+        { fromId: toId, toId: fromId },
+      ],
+    },
+  });
+  if (existe) return fail("Essas provas já estão ligadas.");
+  await prisma.evidenceLink.create({
+    data: {
+      fromId,
+      toId,
+      label: (label ?? "").trim().slice(0, 200),
+      autorId: viewer.id,
+    },
+  });
+  revalidateProvas();
+  return { ok: true };
+}
+
+export async function updateEvidenceLink(
+  id: string,
+  label: string,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  await prisma.evidenceLink.update({
+    where: { id },
+    data: { label: (label ?? "").trim().slice(0, 200) },
+  });
+  revalidateProvas();
+  return { ok: true, id };
+}
+
+export async function deleteEvidenceLink(id: string): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const link = await prisma.evidenceLink.findUnique({ where: { id } });
+  if (!link) return fail("Ligação não encontrada.");
+  if (viewer.role !== ROLES.MASTER && link.autorId !== viewer.id)
+    return fail("Só o autor ou o Mestre pode remover.");
+  await prisma.evidenceLink.delete({ where: { id } });
+  revalidateProvas();
+  return { ok: true };
 }
 
 // GM tira tudo de cena de uma vez (aparições do Livro + retratos na mesa).

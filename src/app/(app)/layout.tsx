@@ -4,7 +4,6 @@ import { ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { SiteHeader } from "@/components/SiteHeader";
 import { EncounterBanner } from "@/components/EncounterBanner";
-import { NarrationBanner } from "@/components/NarrationBanner";
 import { ChatPanel } from "@/components/ChatPanel";
 import { InitiativePanel } from "@/components/InitiativePanel";
 
@@ -50,7 +49,6 @@ export default async function AppLayout({
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
       <EncounterBanner items={encounters} />
-      <NarrationBanner />
       <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</div>
       <footer className="typewriter border-t border-sepia/30 px-4 py-4 text-center text-xs text-paper/40">
         Arquivo Sombrio — mantenha o véu intacto.
