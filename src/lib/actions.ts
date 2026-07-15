@@ -1106,8 +1106,13 @@ export async function updateMapSettings(input: {
   return { ok: true };
 }
 
-// Jogador/Mestre coloca o token de um personagem (usa o retrato).
-export async function addMyToken(characterId: string): Promise<ActionResult> {
+// Jogador/Mestre coloca (ou reposiciona) o token de um personagem no mapa.
+// x/y opcionais: quando o token é solto arrastando, vêm já ajustados à grade.
+export async function addMyToken(
+  characterId: string,
+  x?: number,
+  y?: number,
+): Promise<ActionResult> {
   const viewer = await getViewer();
   if (!viewer) return fail("Não autenticado.");
   const ch = await prisma.character.findUnique({ where: { id: characterId } });
@@ -1115,8 +1120,18 @@ export async function addMyToken(characterId: string): Promise<ActionResult> {
   const isMaster = viewer.role === ROLES.MASTER;
   if (!isMaster && ch.ownerId !== viewer.id)
     return fail("Só o seu próprio personagem.");
+  const temPos = x !== undefined && y !== undefined;
   const existe = await prisma.mapToken.findFirst({ where: { characterId } });
-  if (existe) return { ok: true, id: existe.id };
+  if (existe) {
+    if (temPos) {
+      await prisma.mapToken.update({
+        where: { id: existe.id },
+        data: { x: Math.trunc(x!) || 0, y: Math.trunc(y!) || 0 },
+      });
+      revalidateMapa();
+    }
+    return { ok: true, id: existe.id };
+  }
   const map = await ensureMap();
   const n = await prisma.mapToken.count();
   await prisma.mapToken.create({
@@ -1125,8 +1140,8 @@ export async function addMyToken(characterId: string): Promise<ActionResult> {
       imageUrl: ch.portraitUrl,
       characterId: ch.id,
       ownerId: ch.ownerId,
-      x: (n % 8) * map.cell,
-      y: Math.floor(n / 8) * map.cell,
+      x: temPos ? Math.trunc(x!) || 0 : (n % 8) * map.cell,
+      y: temPos ? Math.trunc(y!) || 0 : Math.floor(n / 8) * map.cell,
     },
   });
   revalidateMapa();
@@ -1135,11 +1150,14 @@ export async function addMyToken(characterId: string): Promise<ActionResult> {
 
 const LADOS_VALIDOS = ["ALIADO", "INIMIGO", "NEUTRO"];
 
-// Mestre adiciona um token avulso (inimigo/PNJ), com imagem e lado opcionais.
+// Mestre adiciona um token avulso (inimigo/PNJ), com imagem, lado e posição
+// opcionais (posição usada ao colar/copiar).
 export async function addMapTokenCustom(
   nome: string,
   imageUrl: string,
   lado: string = "INIMIGO",
+  x?: number,
+  y?: number,
 ): Promise<ActionResult> {
   try {
     await requireMaster();
@@ -1149,13 +1167,43 @@ export async function addMapTokenCustom(
   const n = (nome ?? "").trim().slice(0, 80);
   const map = await ensureMap();
   const count = await prisma.mapToken.count();
+  const temPos = x !== undefined && y !== undefined;
   await prisma.mapToken.create({
     data: {
       nome: n,
       imageUrl: (imageUrl ?? "").trim() || null,
       lado: LADOS_VALIDOS.includes(lado) ? lado : "INIMIGO",
-      x: (count % 8) * map.cell,
-      y: Math.floor(count / 8) * map.cell,
+      x: temPos ? Math.trunc(x!) || 0 : (count % 8) * map.cell,
+      y: temPos ? Math.trunc(y!) || 0 : Math.floor(count / 8) * map.cell,
+    },
+  });
+  revalidateMapa();
+  return { ok: true };
+}
+
+// Mestre puxa um token a partir de uma entrada do Livro (monstro/PNJ).
+export async function addMapTokenFromLore(
+  loreId: string,
+  x?: number,
+  y?: number,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const entry = await prisma.loreEntry.findUnique({ where: { id: loreId } });
+  if (!entry) return fail("Entrada não encontrada.");
+  const map = await ensureMap();
+  const count = await prisma.mapToken.count();
+  const temPos = x !== undefined && y !== undefined;
+  await prisma.mapToken.create({
+    data: {
+      nome: entry.titulo.slice(0, 80),
+      imageUrl: entry.imagemUrl,
+      lado: "INIMIGO",
+      x: temPos ? Math.trunc(x!) || 0 : (count % 8) * map.cell,
+      y: temPos ? Math.trunc(y!) || 0 : Math.floor(count / 8) * map.cell,
     },
   });
   revalidateMapa();
@@ -1200,6 +1248,53 @@ export async function moveMapToken(
   return { ok: true, id };
 }
 
+const STATUS_VALIDOS = [
+  "",
+  "MORTO",
+  "INCONSCIENTE",
+  "FERIDO",
+  "ENVENENADO",
+  "ATORDOADO",
+  "FUGINDO",
+  "ALVO",
+];
+
+// Marcador de status do token (morto, ferido...). Mestre ou dono.
+export async function setTokenStatus(
+  id: string,
+  status: string,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  if (!STATUS_VALIDOS.includes(status)) return fail("Status inválido.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id)
+    return fail("Você só altera o seu token.");
+  await prisma.mapToken.update({ where: { id }, data: { status } });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
+// Redimensiona um token (px). 0 volta ao tamanho de um quadro. Mestre ou dono.
+export async function resizeMapToken(
+  id: string,
+  size: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id)
+    return fail("Você só altera o seu token.");
+  const s = Math.max(0, Math.min(2000, Math.trunc(size) || 0));
+  await prisma.mapToken.update({ where: { id }, data: { size: s } });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
 export async function removeMapToken(id: string): Promise<ActionResult> {
   const viewer = await getViewer();
   if (!viewer) return fail("Não autenticado.");
@@ -1238,6 +1333,38 @@ export async function ajustarRecursos(
   revalidateCharacter(id);
   revalidateMapa();
   return { ok: true, id };
+}
+
+// Usa um item do personagem (aplica efeito PV/SAN e gasta 1 uso) — ficha rápida.
+export async function usarItemRapido(
+  characterId: string,
+  index: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const ch = await prisma.character.findUnique({ where: { id: characterId } });
+  if (!ch) return fail("Personagem não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && ch.ownerId !== viewer.id)
+    return fail("Só o seu próprio personagem.");
+  const inv = parseInventory(ch.inventory);
+  const it = inv[index];
+  if (!it) return fail("Item inválido.");
+  if (it.usos <= 0) return fail("Sem usos restantes.");
+  const novoInv = inv.map((x, i) =>
+    i === index ? { ...x, usos: Math.max(0, x.usos - 1) } : x,
+  );
+  await prisma.character.update({
+    where: { id: characterId },
+    data: {
+      inventory: JSON.stringify(novoInv),
+      pvAtual: ch.pvAtual + (it.efeitoPv || 0),
+      sanAtual: ch.sanAtual + (it.efeitoSan || 0),
+    },
+  });
+  revalidateCharacter(characterId);
+  revalidateMapa();
+  return { ok: true, id: characterId };
 }
 
 export async function limparTokens(): Promise<ActionResult> {

@@ -9,7 +9,7 @@ export default async function MapaPage() {
   const viewer = await requireViewer();
   const isMaster = viewer.role === ROLES.MASTER;
 
-  const [map, tokens, chars] = await Promise.all([
+  const [map, tokens, chars, turnoEntry, loreRows] = await Promise.all([
     prisma.gameMap.findUnique({ where: { id: "main" } }),
     prisma.mapToken.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.character.findMany({
@@ -17,6 +17,13 @@ export default async function MapaPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, portraitUrl: true },
     }),
+    prisma.initiativeEntry.findFirst({ where: { atual: true } }),
+    isMaster
+      ? prisma.loreEntry.findMany({
+          orderBy: [{ categoria: "asc" }, { titulo: "asc" }],
+          select: { id: true, titulo: true, imagemUrl: true, categoria: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const initial = {
@@ -29,6 +36,7 @@ export default async function MapaPage() {
       showGrid: true,
     },
     tokens,
+    turno: turnoEntry?.nome ?? null,
     viewerId: viewer.id,
     isMaster,
   };
@@ -50,7 +58,7 @@ export default async function MapaPage() {
 
       {/* Full-bleed: usa a largura toda da tela (desktop). */}
       <div className="mx-[calc(50%-50vw)] w-screen px-4">
-        <CombatMap initial={initial} chars={chars} />
+        <CombatMap initial={initial} chars={chars} lore={loreRows} />
       </div>
     </main>
   );

@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addMapTokenCustom,
+  addMapTokenFromLore,
   addMyToken,
   ajustarRecursos,
   limparTokens,
   moveMapToken,
   removeMapToken,
+  resizeMapToken,
   setTokenLado,
+  setTokenStatus,
   updateMapSettings,
+  usarItemRapido,
 } from "@/lib/actions";
 import {
   ATTRIBUTES,
@@ -19,6 +23,8 @@ import {
 } from "@/lib/game";
 import { ResourceMeter } from "@/components/ResourceMeter";
 import { ConditionBadges } from "@/components/Conditions";
+import { DiceRoller } from "@/components/DiceRoller";
+import { WeaponRoller } from "@/components/WeaponRoller";
 
 function fmtSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -35,6 +41,7 @@ interface FichaRapida {
   attrCombate: number;
   attrLabia: number;
   attrMente: number;
+  especialistaFocos: string[];
   pvAtual: number;
   pvMax: number;
   sanAtual: number;
@@ -65,6 +72,8 @@ interface Token {
   characterId: string | null;
   ownerId: string | null;
   lado: string;
+  status: string;
+  size: number;
   x: number;
   y: number;
 }
@@ -78,7 +87,34 @@ const LADOS = [
 function ladoCor(lado: string): string {
   return LADOS.find((l) => l.key === lado)?.cor ?? "#e0c060";
 }
+
+const STATUS = [
+  { key: "", label: "Nenhum", icone: "" },
+  { key: "MORTO", label: "Morto", icone: "💀" },
+  { key: "INCONSCIENTE", label: "Inconsciente", icone: "😵" },
+  { key: "FERIDO", label: "Ferido", icone: "🩸" },
+  { key: "ENVENENADO", label: "Envenenado", icone: "🤢" },
+  { key: "ATORDOADO", label: "Atordoado", icone: "💫" },
+  { key: "FUGINDO", label: "Fugindo", icone: "🏃" },
+  { key: "ALVO", label: "Alvo", icone: "🎯" },
+];
+
+function statusIcone(key: string): string {
+  return STATUS.find((s) => s.key === key)?.icone ?? "";
+}
 interface CharLite {
+  id: string;
+  name: string;
+  portraitUrl: string | null;
+}
+interface LoreLite {
+  id: string;
+  titulo: string;
+  imagemUrl: string | null;
+  categoria: string;
+}
+interface PlaceItem {
+  kind: "char" | "lore";
   id: string;
   name: string;
   portraitUrl: string | null;
@@ -86,6 +122,7 @@ interface CharLite {
 interface MapData {
   map: MapCfg;
   tokens: Token[];
+  turno: string | null;
   viewerId: string | null;
   isMaster: boolean;
 }
@@ -95,9 +132,11 @@ const POLL_MS = 4000;
 export function CombatMap({
   initial,
   chars,
+  lore = [],
 }: {
   initial: MapData;
   chars: CharLite[];
+  lore?: LoreLite[];
 }) {
   const [data, setData] = useState<MapData>(initial);
   const [pos, setPos] = useState<Record<string, { x: number; y: number }>>(
@@ -113,6 +152,22 @@ export function CombatMap({
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [qtd, setQtd] = useState(1);
+  const [placing, setPlacing] = useState<PlaceItem | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const [sizes, setSizes] = useState<Record<string, number>>(() => {
+    const m: Record<string, number> = {};
+    initial.tokens.forEach((t) => (m[t.id] = t.size > 0 ? t.size : initial.map.cell));
+    return m;
+  });
+  const [clip, setClip] = useState<{
+    nome: string;
+    imageUrl: string | null;
+    lado: string;
+    status: string;
+    size: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const [bgUrlInput, setBgUrlInput] = useState(initial.map.backgroundUrl ?? "");
   const [cellInput, setCellInput] = useState(initial.map.cell);
@@ -126,16 +181,19 @@ export function CombatMap({
   const cell = data.map.cell;
   const areaW = data.map.cols * cell;
   const areaH = data.map.rows * cell;
+  const podeEditar =
+    !!ficha && (isMaster || ficha.ownerId === data.viewerId);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
-    kind: "pan" | "token";
+    kind: "pan" | "token" | "resize";
     id?: string;
     canMove?: boolean;
     startX: number;
     startY: number;
     ox: number;
     oy: number;
+    osize?: number;
     moved?: boolean;
   } | null>(null);
   const pinnedRef = useRef<Set<string>>(new Set());
@@ -153,6 +211,17 @@ export function CombatMap({
             pinnedRef.current.has(t.id) || dragRef.current?.id === t.id
               ? (prev[t.id] ?? { x: t.x, y: t.y })
               : { x: t.x, y: t.y };
+        });
+        return m;
+      });
+      setSizes((prev) => {
+        const m: Record<string, number> = {};
+        d.tokens.forEach((t) => {
+          const base = t.size > 0 ? t.size : d.map.cell;
+          m[t.id] =
+            pinnedRef.current.has(t.id) || dragRef.current?.id === t.id
+              ? (prev[t.id] ?? base)
+              : base;
         });
         return m;
       });
@@ -220,6 +289,86 @@ export function CombatMap({
     return () => window.removeEventListener("keydown", onKey);
   }, [sel, data, isMaster, run]);
 
+  // Ctrl+C / Ctrl+V: copiar e colar token (Mestre).
+  useEffect(() => {
+    if (!isMaster) return;
+    function onKey(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const k = e.key.toLowerCase();
+      if (k === "c" && sel) {
+        const t = data.tokens.find((x) => x.id === sel);
+        if (!t) return;
+        const p = pos[t.id] ?? { x: t.x, y: t.y };
+        setClip({
+          nome: t.nome,
+          imageUrl: t.imageUrl,
+          lado: t.lado,
+          status: t.status,
+          size: sizes[t.id] ?? t.size,
+          x: p.x,
+          y: p.y,
+        });
+        e.preventDefault();
+      } else if (k === "v" && clip) {
+        e.preventDefault();
+        const nx = clip.x + cell;
+        const ny = clip.y + cell;
+        setClip({ ...clip, x: nx, y: ny });
+        void run(() =>
+          addMapTokenCustom(
+            clip.nome,
+            clip.imageUrl ?? "",
+            clip.lado,
+            nx,
+            ny,
+          ),
+        );
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isMaster, sel, data, pos, sizes, clip, cell, run]);
+
+  // Arrastar o card do personagem e soltar no mapa.
+  useEffect(() => {
+    if (!placing) return;
+    const item = placing;
+    function mm(e: PointerEvent) {
+      setGhost({ x: e.clientX, y: e.clientY });
+    }
+    function up(e: PointerEvent) {
+      setPlacing(null);
+      setGhost(null);
+      const el = wrapRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      )
+        return; // solto fora do mapa → cancela
+      const wx = (e.clientX - rect.left - view.tx) / view.scale - cell / 2;
+      const wy = (e.clientY - rect.top - view.ty) / view.scale - cell / 2;
+      const sx = Math.round(wx / cell) * cell;
+      const sy = Math.round(wy / cell) * cell;
+      void run(() =>
+        item.kind === "lore"
+          ? addMapTokenFromLore(item.id, sx, sy)
+          : addMyToken(item.id, sx, sy),
+      );
+    }
+    window.addEventListener("pointermove", mm);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", mm);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [placing, view, cell, run]);
+
   function worldDelta(dx: number, dy: number) {
     return { dx: dx / view.scale, dy: dy / view.scale };
   }
@@ -252,6 +401,20 @@ export function CombatMap({
     };
   }
 
+  function onDownResize(e: React.PointerEvent, t: Token) {
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    dragRef.current = {
+      kind: "resize",
+      id: t.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      ox: 0,
+      oy: 0,
+      osize: sizes[t.id] ?? (t.size > 0 ? t.size : cell),
+    };
+  }
+
   function onMove(e: React.PointerEvent) {
     const d = dragRef.current;
     if (!d) return;
@@ -267,6 +430,16 @@ export function CombatMap({
       const { dx, dy } = worldDelta(e.clientX - d.startX, e.clientY - d.startY);
       const id = d.id;
       setPos((m) => ({ ...m, [id]: { x: d.ox + dx, y: d.oy + dy } }));
+    } else if (d.kind === "resize" && d.id) {
+      const delta =
+        Math.max(e.clientX - d.startX, e.clientY - d.startY) / view.scale;
+      let ns = (d.osize ?? cell) + delta;
+      // Sem Shift: encaixa em múltiplos do quadro. Com Shift: livre.
+      ns = e.shiftKey
+        ? Math.max(16, ns)
+        : Math.max(cell, Math.round(ns / cell) * cell);
+      const id = d.id;
+      setSizes((m) => ({ ...m, [id]: ns }));
     }
   }
 
@@ -288,6 +461,12 @@ export function CombatMap({
       } else {
         setSel(d.id); // clique curto → seleciona
       }
+    } else if (d?.kind === "resize" && d.id) {
+      const id = d.id;
+      const s = sizes[id];
+      pinnedRef.current.add(id);
+      setTimeout(() => pinnedRef.current.delete(id), 6000);
+      if (typeof s === "number") void run(() => resizeMapToken(id, Math.round(s)));
     }
   }
 
@@ -330,13 +509,26 @@ export function CombatMap({
             <p className="label mb-2">
               {isMaster ? "Colocar personagem" : "Seus personagens"}
             </p>
+            <p className="typewriter mb-1 text-[0.65rem] text-sepia-dark">
+              Arraste o card para o mapa, no lugar onde o token deve ficar.
+            </p>
             <div className="max-h-56 space-y-1 overflow-y-auto">
               {chars.map((c) => {
                 const on = jaTenhoToken(c.id);
                 return (
                   <div
                     key={c.id}
-                    className="flex items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      setPlacing({
+                        kind: "char",
+                        id: c.id,
+                        name: c.name,
+                        portraitUrl: c.portraitUrl,
+                      });
+                      setGhost({ x: e.clientX, y: e.clientY });
+                    }}
+                    className="flex touch-none cursor-grab select-none items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5 active:cursor-grabbing"
                   >
                     <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-black/15">
                       {c.portraitUrl ? (
@@ -344,6 +536,7 @@ export function CombatMap({
                         <img
                           src={c.portraitUrl}
                           alt=""
+                          draggable={false}
                           className="h-full w-full object-cover grayscale"
                         />
                       ) : (
@@ -355,14 +548,9 @@ export function CombatMap({
                     <span className="typewriter min-w-0 flex-1 truncate text-sm text-sepia-ink">
                       {c.name}
                     </span>
-                    <button
-                      type="button"
-                      className={`btn tap text-[0.7rem] ${on ? "btn-ghost" : "btn-primary"}`}
-                      disabled={on}
-                      onClick={() => run(() => addMyToken(c.id))}
-                    >
-                      {on ? "no mapa ✓" : "＋ puxar"}
-                    </button>
+                    <span className="typewriter shrink-0 text-[0.65rem] text-sepia">
+                      {on ? "no mapa ✓ ↦" : "↦ arraste"}
+                    </span>
                   </div>
                 );
               })}
@@ -520,6 +708,55 @@ export function CombatMap({
                 </button>
               </div>
             </section>
+
+            {lore.length > 0 && (
+              <section className="paper paper-edge rounded-md p-3">
+                <p className="label mb-1">Do Livro (monstros/PNJs)</p>
+                <p className="typewriter mb-1 text-[0.65rem] text-sepia-dark">
+                  Arraste para o mapa.
+                </p>
+                <div className="max-h-56 space-y-1 overflow-y-auto">
+                  {lore.map((l) => (
+                    <div
+                      key={l.id}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        setPlacing({
+                          kind: "lore",
+                          id: l.id,
+                          name: l.titulo,
+                          portraitUrl: l.imagemUrl,
+                        });
+                        setGhost({ x: e.clientX, y: e.clientY });
+                      }}
+                      className="flex touch-none cursor-grab select-none items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5 active:cursor-grabbing"
+                    >
+                      <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-black/15">
+                        {l.imagemUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={l.imagemUrl}
+                            alt=""
+                            draggable={false}
+                            className="h-full w-full object-cover grayscale"
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-xs text-sepia/50">
+                            ?
+                          </span>
+                        )}
+                      </span>
+                      <span className="typewriter min-w-0 flex-1 truncate text-sm text-sepia-ink">
+                        {l.titulo}
+                      </span>
+                      <span className="typewriter shrink-0 text-[0.65rem] text-sepia">
+                        ↦
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
 
@@ -538,10 +775,11 @@ export function CombatMap({
           ))}
         </div>
         <p className="typewriter text-[0.7rem] text-paper/45">
-          Arraste seu token (encaixa na grade). Clique para selecionar: aperte{" "}
-          <strong>Delete</strong> para remover ou use os pontos coloridos acima
-          do token para mudar o lado. Duplo-clique abre a ficha rápida. A roda
-          do mouse dá zoom só sobre o mapa.
+          Arraste para o mapa. Clique para selecionar: <strong>Delete</strong>{" "}
+          remove; a alça ◢ redimensiona (segure <strong>Shift</strong> para
+          tamanho livre); os pontos e ícones acima do token mudam lado e status.
+          Duplo-clique abre a ficha rápida. {isMaster ? "Ctrl+C / Ctrl+V copia e cola. " : ""}
+          A roda do mouse dá zoom só sobre o mapa.
         </p>
         {erro && <p className="typewriter text-xs text-stamp">{erro}</p>}
       </aside>
@@ -624,6 +862,15 @@ export function CombatMap({
             {data.tokens.map((t) => {
               const p = pos[t.id] ?? { x: t.x, y: t.y };
               const meu = isMaster || t.ownerId === data.viewerId;
+              const ehTurno =
+                !!data.turno &&
+                t.nome.trim() !== "" &&
+                t.nome.trim().toLowerCase() === data.turno.trim().toLowerCase();
+              const tsize = sizes[t.id] ?? (t.size > 0 ? t.size : cell);
+              const ringos = [`0 0 0 3px ${ladoCor(t.lado)}`];
+              if (sel === t.id) ringos.push("0 0 0 6px rgba(231,220,196,0.9)");
+              if (ehTurno) ringos.push("0 0 18px 5px rgba(224,192,96,0.9)");
+              const icone = statusIcone(t.status);
               return (
                 <div
                   key={t.id}
@@ -632,17 +879,12 @@ export function CombatMap({
                     if (t.characterId) void abrirFicha(t.characterId);
                   }}
                   title={t.characterId ? "Duplo-clique: ficha rápida" : undefined}
-                  style={{ left: p.x, top: p.y, width: cell, height: cell }}
+                  style={{ left: p.x, top: p.y, width: tsize, height: tsize }}
                   className={`absolute select-none ${meu ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                 >
                   <div
-                    className="token relative h-full w-full overflow-hidden rounded-full"
-                    style={{
-                      boxShadow:
-                        sel === t.id
-                          ? `0 0 0 3px ${ladoCor(t.lado)}, 0 0 0 6px rgba(231,220,196,0.9)`
-                          : `0 0 0 3px ${ladoCor(t.lado)}`,
-                    }}
+                    className={`token relative h-full w-full overflow-hidden rounded-full ${ehTurno ? "turno-pulse" : ""} ${t.status === "MORTO" ? "opacity-70 grayscale" : ""}`}
+                    style={{ boxShadow: ringos.join(", ") }}
                   >
                     {t.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -658,29 +900,84 @@ export function CombatMap({
                       </span>
                     )}
                   </div>
+
+                  {/* Ícone de status no canto direito */}
+                  {icone && (
+                    <span
+                      className="pointer-events-none absolute -right-1 -top-1 flex items-center justify-center rounded-full bg-ink/85 leading-none"
+                      style={{
+                        width: Math.max(16, tsize * 0.34),
+                        height: Math.max(16, tsize * 0.34),
+                        fontSize: Math.max(11, tsize * 0.22),
+                      }}
+                    >
+                      {icone}
+                    </span>
+                  )}
+
+                  {/* Alça de redimensionar */}
+                  {sel === t.id && meu && (
+                    <span
+                      onPointerDown={(e) => onDownResize(e, t)}
+                      className="absolute -bottom-1 -right-1 h-4 w-4 cursor-nwse-resize rounded-sm bg-paper-light text-center text-[0.6rem] leading-4 text-ink"
+                      title="Arraste para redimensionar (Shift = livre)"
+                    >
+                      ◢
+                    </span>
+                  )}
+
+                  {/* Picker de lado + status (token selecionado) */}
                   {sel === t.id && meu && (
                     <div
                       onPointerDown={(e) => e.stopPropagation()}
-                      className="absolute left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-ink/90 px-1.5 py-1 shadow"
-                      style={{ top: -cell * 0.42 }}
+                      className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center gap-1"
+                      style={{ top: -tsize * 0.5 - 22 }}
                     >
-                      {LADOS.map((l) => (
-                        <button
-                          key={l.key}
-                          type="button"
-                          onClick={() => run(() => setTokenLado(t.id, l.key))}
-                          title={l.label}
-                          className="h-3.5 w-3.5 rounded-full"
-                          style={{
-                            background: l.cor,
-                            outline:
-                              t.lado === l.key
-                                ? "2px solid rgba(231,220,196,0.9)"
-                                : "none",
-                            outlineOffset: 1,
-                          }}
-                        />
-                      ))}
+                      <div className="flex gap-1 rounded-full bg-ink/90 px-1.5 py-1 shadow">
+                        {LADOS.map((l) => (
+                          <button
+                            key={l.key}
+                            type="button"
+                            onClick={() => run(() => setTokenLado(t.id, l.key))}
+                            title={l.label}
+                            className="h-3.5 w-3.5 rounded-full"
+                            style={{
+                              background: l.cor,
+                              outline:
+                                t.lado === l.key
+                                  ? "2px solid rgba(231,220,196,0.9)"
+                                  : "none",
+                              outlineOffset: 1,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex max-w-[168px] flex-wrap justify-center gap-0.5 rounded bg-ink/90 px-1 py-0.5 shadow">
+                        {STATUS.map((s) => (
+                          <button
+                            key={s.key || "none"}
+                            type="button"
+                            onClick={() => run(() => setTokenStatus(t.id, s.key))}
+                            title={s.label}
+                            className={`h-5 w-5 rounded text-xs leading-5 ${t.status === s.key ? "bg-stamp/40" : ""}`}
+                          >
+                            {s.icone || "∅"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ehTurno && sel !== t.id && (
+                    <div
+                      className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 font-bold text-ink"
+                      style={{
+                        top: -tsize * 0.36,
+                        background: "#e0c060",
+                        fontSize: Math.max(8, cell * 0.14),
+                      }}
+                    >
+                      ▶ turno
                     </div>
                   )}
                   {t.nome && (
@@ -697,6 +994,29 @@ export function CombatMap({
           </div>
         </div>
       </div>
+
+      {/* Fantasma do card sendo arrastado */}
+      {placing && ghost && (
+        <div
+          className="pointer-events-none fixed z-[95]"
+          style={{ left: ghost.x - 24, top: ghost.y - 24, width: 48, height: 48 }}
+        >
+          <div className="token h-full w-full overflow-hidden rounded-full opacity-85">
+            {placing.portraitUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={placing.portraitUrl}
+                alt=""
+                className="h-full w-full object-cover grayscale"
+              />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center bg-sepia-ink text-xs text-paper-light">
+                {placing.name.slice(0, 2)}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Ficha rápida (duplo-clique no token) */}
       {(ficha || fichaLoading) && (
@@ -783,7 +1103,7 @@ export function CombatMap({
                     current={ficha.sanAtual}
                     max={ficha.sanMax}
                   />
-                  {(isMaster || ficha.ownerId === data.viewerId) && (
+                  {podeEditar && (
                     <div className="space-y-2 border-t border-sepia/25 pt-2">
                       <div className="flex items-center gap-2">
                         <span className="label">Quantidade</span>
@@ -835,48 +1155,99 @@ export function CombatMap({
                   )}
                 </div>
 
-                <div>
-                  <p className="label mb-1">Itens</p>
-                  {ficha.inventory.length === 0 ? (
-                    <p className="typewriter text-xs text-paper/40">
-                      Bolsos vazios.
-                    </p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {ficha.inventory.map((it, i) => (
-                        <li
-                          key={i}
-                          className="typewriter border-b border-dashed border-sepia/25 py-1 text-sm text-paper"
-                        >
-                          — {it.nome}
-                          {it.qtd > 1 ? (
-                            <span className="text-paper/50"> ×{it.qtd}</span>
-                          ) : null}
-                          {it.dano ? (
-                            <span className="ml-2 text-xs text-stamp-bright">
-                              ({it.dano})
-                            </span>
-                          ) : null}
-                          {(it.efeitoPv !== 0 || it.efeitoSan !== 0) && (
-                            <span className="ml-2 text-[0.62rem] text-emerald-300">
-                              {it.efeitoPv !== 0
-                                ? `${it.efeitoPv > 0 ? "+" : ""}${it.efeitoPv} PV`
-                                : ""}
-                              {it.efeitoPv !== 0 && it.efeitoSan !== 0
-                                ? " · "
-                                : ""}
-                              {it.efeitoSan !== 0
-                                ? `${it.efeitoSan > 0 ? "+" : ""}${it.efeitoSan} SAN`
-                                : ""}
-                            </span>
-                          )}
-                          <span className="ml-2 text-[0.6rem] text-paper/40">
-                            usos: {it.usos}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                {/* Rolagens e itens — painel claro (componentes de papel) */}
+                <div className="paper paper-edge space-y-4 rounded-md p-3">
+                  <DiceRoller
+                    attrs={{
+                      attrInvestigar: ficha.attrInvestigar,
+                      attrCombate: ficha.attrCombate,
+                      attrLabia: ficha.attrLabia,
+                      attrMente: ficha.attrMente,
+                    }}
+                    focos={
+                      ficha.classe === "ESPECIALISTA"
+                        ? ficha.especialistaFocos
+                        : []
+                    }
+                  />
+
+                  <div>
+                    <p className="label mb-1">Itens</p>
+                    {ficha.inventory.length === 0 ? (
+                      <p className="typewriter text-sm text-sepia-dark">
+                        Bolsos vazios.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {ficha.inventory.map((it, i) => {
+                          const temEfeito =
+                            it.efeitoPv !== 0 || it.efeitoSan !== 0;
+                          return (
+                            <li
+                              key={i}
+                              className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-sepia/30 py-2"
+                            >
+                              <span className="typewriter text-sm text-sepia-ink">
+                                — {it.nome}
+                                {it.qtd > 1 ? (
+                                  <span className="text-sepia"> ×{it.qtd}</span>
+                                ) : null}
+                                {temEfeito && (
+                                  <span className="ml-2 text-[0.65rem] text-emerald-800">
+                                    {it.efeitoPv !== 0
+                                      ? `${it.efeitoPv > 0 ? "+" : ""}${it.efeitoPv} PV`
+                                      : ""}
+                                    {it.efeitoPv !== 0 && it.efeitoSan !== 0
+                                      ? " · "
+                                      : ""}
+                                    {it.efeitoSan !== 0
+                                      ? `${it.efeitoSan > 0 ? "+" : ""}${it.efeitoSan} SAN`
+                                      : ""}
+                                  </span>
+                                )}
+                                <span className="ml-2 text-[0.6rem] text-sepia-dark">
+                                  usos: {it.usos}
+                                </span>
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {podeEditar && it.usos > 0 && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary tap px-2 py-1 text-xs"
+                                    onClick={() =>
+                                      run(async () => {
+                                        const r = await usarItemRapido(
+                                          ficha.id,
+                                          i,
+                                        );
+                                        void abrirFicha(ficha.id);
+                                        return r;
+                                      })
+                                    }
+                                    title={
+                                      temEfeito
+                                        ? "Usar: aplica efeito e gasta 1 uso"
+                                        : "Usar (−1 uso)"
+                                    }
+                                  >
+                                    Usar
+                                  </button>
+                                )}
+                                {it.dano ? (
+                                  <WeaponRoller
+                                    dieCode={it.dano}
+                                    combate={ficha.attrCombate}
+                                    advantage={ficha.classe === "COMBATENTE"}
+                                    nome={it.nome}
+                                  />
+                                ) : null}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

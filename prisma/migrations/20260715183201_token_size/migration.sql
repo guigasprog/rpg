@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "MapToken" ADD COLUMN     "size" INTEGER NOT NULL DEFAULT 0;

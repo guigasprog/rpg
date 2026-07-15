@@ -32,6 +32,7 @@ export async function GET(request: Request) {
     attrCombate: ch.attrCombate,
     attrLabia: ch.attrLabia,
     attrMente: ch.attrMente,
+    especialistaFocos: parseStringArray(ch.especialistaFocos).slice(0, 2),
     pvAtual: ch.pvAtual,
     pvMax: computeMaxPv(ch.attrCombate, ch.classe, ch.nivel, ch.subclasse),
     sanAtual: ch.sanAtual,

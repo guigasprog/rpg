@@ -11,9 +11,10 @@ export async function GET() {
     return NextResponse.json({ error: "não autenticado" }, { status: 401 });
   }
 
-  const [map, tokens] = await Promise.all([
+  const [map, tokens, turnoEntry] = await Promise.all([
     prisma.gameMap.findUnique({ where: { id: "main" } }),
     prisma.mapToken.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.initiativeEntry.findFirst({ where: { atual: true } }),
   ]);
 
   return NextResponse.json({
@@ -26,6 +27,7 @@ export async function GET() {
       showGrid: true,
     },
     tokens,
+    turno: turnoEntry?.nome ?? null,
     viewerId: session.user.id ?? null,
     isMaster: session.user.role === "MASTER",
   });
