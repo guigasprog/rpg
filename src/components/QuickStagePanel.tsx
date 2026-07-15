@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  enviarNarracao,
   limparCena,
+  limparNarracao,
   setCharacterOnStage,
   setLoreRevealed,
 } from "@/lib/actions";
@@ -37,6 +39,7 @@ export function QuickStagePanel({
   const [pending, start] = useTransition();
   const [query, setQuery] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [narr, setNarr] = useState("");
 
   const loreOn = lore.filter((e) => e.revelado);
   const charsOn = chars.filter((c) => c.mostrarNaMesa);
@@ -169,6 +172,42 @@ export function QuickStagePanel({
           </div>
         </>
       )}
+
+      {/* Narração ao vivo */}
+      <div className="mt-3 border-t border-sepia/25 pt-2">
+        <p className="label mb-1">Narração ao vivo</p>
+        <textarea
+          className="field text-sm"
+          rows={2}
+          value={narr}
+          onChange={(e) => setNarr(e.target.value)}
+          placeholder="As luzes piscam três vezes. Depois, silêncio…"
+        />
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-primary tap text-xs"
+            disabled={pending || !narr.trim()}
+            onClick={() =>
+              run(async () => {
+                const r = await enviarNarracao(narr);
+                if (r.ok) setNarr("");
+                return r;
+              })
+            }
+          >
+            📣 Narrar na tela
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost tap text-xs"
+            disabled={pending}
+            onClick={() => run(limparNarracao)}
+          >
+            Tirar narração
+          </button>
+        </div>
+      </div>
 
       {/* Retratos dos investigadores */}
       {chars.length > 0 && (

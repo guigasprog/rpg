@@ -763,6 +763,43 @@ export async function setCharacterOnStage(
   return { ok: true, id };
 }
 
+// ---------------- Narração ao vivo ----------------
+
+// GM exibe um cartão de narração na tela de todos (substitui o anterior).
+export async function enviarNarracao(texto: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const t = (texto ?? "").trim();
+  if (!t) return fail("Escreva a narração.");
+  if (t.length > 1000) return fail("Narração muito longa.");
+  await prisma.$transaction([
+    prisma.broadcast.updateMany({
+      where: { ativo: true },
+      data: { ativo: false },
+    }),
+    prisma.broadcast.create({ data: { texto: t, ativo: true } }),
+  ]);
+  revalidatePath("/mestre");
+  return { ok: true };
+}
+
+export async function limparNarracao(): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.broadcast.updateMany({
+    where: { ativo: true },
+    data: { ativo: false },
+  });
+  revalidatePath("/mestre");
+  return { ok: true };
+}
+
 // ---------------- Mural de Provas / Pistas ----------------
 
 function revalidateProvas() {
