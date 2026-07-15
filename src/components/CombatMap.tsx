@@ -26,6 +26,7 @@ import { ResourceMeter } from "@/components/ResourceMeter";
 import { ConditionBadges } from "@/components/Conditions";
 import { DiceRoller } from "@/components/DiceRoller";
 import { WeaponRoller } from "@/components/WeaponRoller";
+import { ChatBox } from "@/components/ChatBox";
 
 function fmtSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -157,6 +158,8 @@ export function CombatMap({
   } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [asideOpen, setAsideOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(true);
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [qtd, setQtd] = useState(1);
@@ -640,9 +643,32 @@ export function CombatMap({
     data.tokens.some((t) => t.characterId === charId);
 
   return (
-    <div className="lg:flex lg:items-start lg:gap-4">
-      {/* Painel de customização */}
-      <aside className="mb-3 space-y-3 lg:mb-0 lg:max-h-[80vh] lg:w-80 lg:shrink-0 lg:overflow-y-auto">
+    <div className="lg:flex lg:items-start lg:gap-3">
+      {/* Painel de customização (recolhível) */}
+      {!asideOpen && (
+        <button
+          type="button"
+          onClick={() => setAsideOpen(true)}
+          className="btn btn-dark tap mb-3 text-xs lg:mb-0"
+          title="Abrir painel"
+        >
+          » Painel
+        </button>
+      )}
+      <aside
+        className={`mb-3 space-y-3 lg:mb-0 lg:max-h-[80vh] lg:shrink-0 lg:overflow-y-auto ${asideOpen ? "lg:w-72" : "hidden"}`}
+      >
+        <div className="flex items-center justify-between">
+          <span className="label">Painel</span>
+          <button
+            type="button"
+            onClick={() => setAsideOpen(false)}
+            className="btn btn-ghost tap text-xs"
+            title="Recolher painel"
+          >
+            « ocultar
+          </button>
+        </div>
         {chars.length > 0 && (
           <section className="paper paper-edge rounded-md p-3">
             <p className="label mb-2">
@@ -1173,6 +1199,24 @@ export function CombatMap({
         </div>
       </div>
 
+      {/* Chat ancorado à direita (recolhível) */}
+      {chatOpen ? (
+        <div className="mt-3 lg:mt-0 lg:w-80 lg:shrink-0">
+          <div className="h-[80vh] overflow-hidden rounded-md border border-sepia/50 bg-ink/95">
+            <ChatBox onClose={() => setChatOpen(false)} />
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setChatOpen(true)}
+          className="btn btn-dark tap mt-3 text-xs lg:mt-0"
+          title="Abrir chat"
+        >
+          💬 Chat
+        </button>
+      )}
+
       {/* Caixa de seleção múltipla */}
       {marquee && (
         <div
@@ -1382,6 +1426,7 @@ export function CombatMap({
                         ? ficha.especialistaFocos
                         : []
                     }
+                    personagem={ficha.name}
                   />
 
                   <div>
@@ -1452,6 +1497,7 @@ export function CombatMap({
                                     combate={ficha.attrCombate}
                                     advantage={ficha.classe === "COMBATENTE"}
                                     nome={it.nome}
+                                    personagem={ficha.name}
                                   />
                                 ) : null}
                               </div>

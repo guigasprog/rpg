@@ -394,6 +394,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
                     ? character.especialistaFocos
                     : []
                 }
+                personagem={character.name}
               />
             </div>
             {milestones.length > 0 && (
@@ -474,6 +475,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
             canUse={canEdit}
             combate={character.attrCombate}
             combatente={combatente}
+            personagem={character.name}
             onUsar={usarItem}
             party={party}
             onUsarAliado={usarNoAliado}
@@ -832,6 +834,7 @@ function InventoryTab({
   canUse,
   combate,
   combatente,
+  personagem,
   onUsar,
   party,
   onUsarAliado,
@@ -842,6 +845,7 @@ function InventoryTab({
   canUse: boolean;
   combate: number;
   combatente: boolean;
+  personagem: string;
   onUsar: (i: number) => void;
   party: Ally[];
   onUsarAliado: (i: number, allyId: string) => void;
@@ -939,6 +943,7 @@ function InventoryTab({
                   combate={combate}
                   advantage={combatente}
                   nome={item.nome}
+                  personagem={personagem}
                 />
               ) : null}
               {editing && (

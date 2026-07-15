@@ -14,6 +14,7 @@ interface Props {
     attrMente: number;
   };
   focos?: string[]; // Especialista: atributos com rerrolagem 1×/cena
+  personagem?: string; // nome do personagem que rola (mostrado no chat)
 }
 
 const OUTCOME_COLOR: Record<string, string> = {
@@ -26,7 +27,7 @@ function fmt(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
 }
 
-export function DiceRoller({ attrs, focos = [] }: Props) {
+export function DiceRoller({ attrs, focos = [], personagem }: Props) {
   const [result, setResult] = useState<RollResult | null>(null);
   const [used, setUsed] = useState<string>("");
   const [lastKey, setLastKey] = useState<string>("");
@@ -40,6 +41,7 @@ export function DiceRoller({ attrs, focos = [] }: Props) {
     setLastKey(key);
     void registrarRolagem(
       `🎲 ${label} (2d6 ${fmt(mod)}): [${r.dice.join(", ")}] = ${r.total} — ${OUTCOME_LABEL[r.outcome]}`,
+      personagem,
     );
   }
 
@@ -51,6 +53,7 @@ export function DiceRoller({ attrs, focos = [] }: Props) {
     setRerrolagemOk(false);
     void registrarRolagem(
       `🎲 ${used} rerrolado (foco): [${r.dice.join(", ")}] = ${r.total} — ${OUTCOME_LABEL[r.outcome]}`,
+      personagem,
     );
   }
 

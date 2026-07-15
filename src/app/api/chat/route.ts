@@ -26,6 +26,7 @@ export async function GET() {
       autorId: true,
       tipo: true,
       texto: true,
+      personagem: true,
       destinoUserId: true,
       secreta: true,
       createdAt: true,

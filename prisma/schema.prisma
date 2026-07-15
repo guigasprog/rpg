@@ -35,6 +35,7 @@ model Message {
   autorId   String? // id do autor (para sussurros)
   tipo      String   @default("CHAT") // CHAT | ROLL
   texto     String
+  personagem String? // personagem vinculado à rolagem (para exibir no chat)
   total     Int? // resultado numérico da rolagem, se houver
   // Visibilidade: destinoUserId != null → sussurro (só autor, destino e Mestre).
   destinoUserId String? // sussurro a um jogador específico

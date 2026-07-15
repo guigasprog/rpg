@@ -10,9 +10,16 @@ interface Props {
   combate: number;
   advantage: boolean; // Combatente: rola 2× e usa o maior
   nome?: string;
+  personagem?: string;
 }
 
-export function WeaponRoller({ dieCode, combate, advantage, nome }: Props) {
+export function WeaponRoller({
+  dieCode,
+  combate,
+  advantage,
+  nome,
+  personagem,
+}: Props) {
   const [res, setRes] = useState<DamageResult | null>(null);
 
   function roll() {
@@ -21,6 +28,7 @@ export function WeaponRoller({ dieCode, combate, advantage, nome }: Props) {
     if (r) {
       void registrarRolagem(
         `🗡️ Dano${nome ? ` (${nome})` : ""} ${dieCode}+COM: [${r.rolls.join(", ")}] + ${r.combate} = ${r.total}${advantage ? " ⚔️" : ""}`,
+        personagem,
       );
     }
   }

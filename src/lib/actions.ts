@@ -1428,13 +1428,24 @@ export async function enviarMensagem(texto: string): Promise<ActionResult> {
       where: { ownerId: session.user.id },
       orderBy: { createdAt: "asc" },
       select: {
+        name: true,
         attrInvestigar: true,
         attrCombate: true,
         attrLabia: true,
         attrMente: true,
       },
     });
-    const roll = parseRollCommand(rest, ch ?? undefined);
+    const roll = parseRollCommand(
+      rest,
+      ch
+        ? {
+            attrInvestigar: ch.attrInvestigar,
+            attrCombate: ch.attrCombate,
+            attrLabia: ch.attrLabia,
+            attrMente: ch.attrMente,
+          }
+        : undefined,
+    );
     if (!roll) {
       return fail("Comando inválido. Ex.: !2d6+inv · !1d20 · !2d6+3 · !s2d6");
     }
@@ -1448,6 +1459,7 @@ export async function enviarMensagem(texto: string): Promise<ActionResult> {
         autorId,
         tipo: "ROLL",
         texto: texto2,
+        personagem: ch?.name ?? null,
         total: roll.total,
         secreta,
       },
@@ -1461,7 +1473,10 @@ export async function enviarMensagem(texto: string): Promise<ActionResult> {
 }
 
 // Registra uma rolagem feita na ficha (rolador/dano) no log da mesa.
-export async function registrarRolagem(texto: string): Promise<ActionResult> {
+export async function registrarRolagem(
+  texto: string,
+  personagem?: string,
+): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return fail("Não autenticado.");
   const t = (texto ?? "").trim().slice(0, 300);
@@ -1470,8 +1485,10 @@ export async function registrarRolagem(texto: string): Promise<ActionResult> {
     data: {
       autorNome: session.user.name ?? "?",
       autorRole: session.user.role ?? ROLES.PLAYER,
+      autorId: session.user.id ?? null,
       tipo: "ROLL",
       texto: t,
+      personagem: personagem?.trim() ? personagem.trim().slice(0, 120) : null,
     },
   });
   return { ok: true };
