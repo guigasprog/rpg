@@ -53,6 +53,8 @@ export interface CharacterDTO {
   propostaStatus: string;
   propostaTexto: string | null;
 
+  condicoes: string[];
+
   // Presentes SOMENTE quando o viewer tem direito.
   masterNotes?: string | null;
   occultismContent?: string | null;
@@ -99,6 +101,18 @@ function parseFocos(raw: string | null): string[] {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
       ? parsed.filter((x) => typeof x === "string").slice(0, 2)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function parseStringArray(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === "string")
       : [];
   } catch {
     return [];
@@ -176,6 +190,8 @@ export function toCharacterDTO(character: Character, viewer: Viewer): CharacterD
 
     propostaStatus: character.propostaStatus,
     propostaTexto: character.propostaTexto,
+
+    condicoes: parseStringArray(character.condicoes),
 
     canEditAsPlayer: isOwner || isMaster,
     canEditAsMaster: isMaster,

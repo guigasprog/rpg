@@ -29,6 +29,7 @@ import {
 } from "@/lib/game";
 import { OccultismToggle } from "@/components/OccultismToggle";
 import { ResourceMeter } from "@/components/ResourceMeter";
+import { ConditionBadges, ConditionsManager } from "@/components/Conditions";
 
 function fmtSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -345,6 +346,21 @@ export function MasterEditForm({ character }: Props) {
         </div>
       </section>
 
+      {/* Condições / estados */}
+      <section className="paper paper-edge rounded-md p-5">
+        <h2 className="display mb-1 text-lg text-sepia-ink">
+          Condições &amp; estados
+        </h2>
+        <p className="typewriter mb-3 text-xs text-sepia-dark">
+          Marque o que aflige o investigador. Aparecem na ficha dele e no painel.
+          &ldquo;Aplicar rodada&rdquo; desconta os efeitos de PV/SAN de uma vez.
+        </p>
+        <ConditionsManager
+          characterId={character.id}
+          condicoes={character.condicoes}
+        />
+      </section>
+
       {/* Inventário + notas */}
       <section className="paper paper-edge rounded-md p-5">
         <h2 className="display mb-3 text-lg text-sepia-ink">Inventário & Anotações</h2>
@@ -587,6 +603,7 @@ function DossierView({
               {character.propostaStatus === PROPOSTA.PENDENTE && (
                 <span className="badge badge-ocultista">proposta pendente</span>
               )}
+              <ConditionBadges condicoes={character.condicoes} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

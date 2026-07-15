@@ -9,6 +9,7 @@ import { ROLES } from "@/lib/roles";
 import {
   computeMaxPv,
   computeMaxSan,
+  getCondition,
   getSubclass,
   MAX_LEVEL,
   OCCULTISM_MAX_LEVEL,
@@ -17,7 +18,7 @@ import {
   SUBCLASS_LEVEL,
 } from "@/lib/game";
 import { parseRollCommand } from "@/lib/dice";
-import { parseInventory } from "@/lib/character";
+import { parseInventory, parseStringArray } from "@/lib/character";
 import {
   createCharacterSchema,
   createPlayerSchema,
@@ -782,6 +783,59 @@ export async function limparCena(): Promise<ActionResult> {
   revalidatePath("/mestre/livro");
   revalidatePath("/manual");
   return { ok: true };
+}
+
+// GM define as condições/estados de um personagem (lista de chaves válidas).
+export async function setCharacterCondicoes(
+  id: string,
+  keys: string[],
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const validas = Array.from(
+    new Set(
+      (Array.isArray(keys) ? keys : []).filter((k) => !!getCondition(k)),
+    ),
+  );
+  await prisma.character.update({
+    where: { id },
+    data: { condicoes: JSON.stringify(validas) },
+  });
+  revalidateCharacter(id);
+  revalidatePath("/mestre");
+  return { ok: true, id };
+}
+
+// GM aplica UMA rodada dos efeitos das condições ativas (soma PV/SAN e ajusta).
+export async function aplicarCondicoesTick(id: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const ch = await prisma.character.findUnique({ where: { id } });
+  if (!ch) return fail("Personagem não encontrado.");
+  const ativas = parseStringArray(ch.condicoes);
+  let dPv = 0;
+  let dSan = 0;
+  for (const k of ativas) {
+    const c = getCondition(k);
+    if (c?.efeitoPv) dPv += c.efeitoPv;
+    if (c?.efeitoSan) dSan += c.efeitoSan;
+  }
+  if (dPv === 0 && dSan === 0) {
+    return fail("Nenhuma condição ativa tem efeito por rodada.");
+  }
+  await prisma.character.update({
+    where: { id },
+    data: { pvAtual: ch.pvAtual + dPv, sanAtual: ch.sanAtual + dSan },
+  });
+  revalidateCharacter(id);
+  revalidatePath("/mestre");
+  return { ok: true, id };
 }
 
 // ---------------- Chat / Auditoria ----------------

@@ -32,12 +32,39 @@ model Message {
   id        String   @id @default(cuid())
   autorNome String
   autorRole String   @default("PLAYER") // MASTER | PLAYER
+  autorId   String? // id do autor (para sussurros)
   tipo      String   @default("CHAT") // CHAT | ROLL
   texto     String
   total     Int? // resultado numérico da rolagem, se houver
+  // Visibilidade: destinoUserId != null → sussurro (só autor, destino e Mestre).
+  destinoUserId String? // sussurro a um jogador específico
+  secreta       Boolean @default(false) // rolagem oculta (só o Mestre vê)
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Mural de Provas / Pistas — evidências que o Mestre revela à mesa.
+model Evidence {
+  id        String   @id @default(cuid())
+  titulo    String
+  descricao String   @default("")
+  imagemUrl String?
+  revelado  Boolean  @default(false) // visível aos jogadores
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([revelado])
+}
+
+// Narração ao vivo — cartão de texto que o Mestre exibe na tela de todos.
+model Broadcast {
+  id        String   @id @default(cuid())
+  texto     String
+  ativo     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([ativo])
 }
 
 // Ordem de iniciativa do combate (gerida pelo Mestre).
@@ -109,6 +136,9 @@ model Character {
   occultismLevel      Int       @default(0) // 0-3, revelação gradual
   occultismContent    String? // JSON: conteúdo revelado (só GM ou desbloqueado)
   occultismUnlockedAt DateTime?
+
+  // Condições/estados (Ferido, Sangrando, Em Pânico...). JSON: string[] de chaves.
+  condicoes String @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -9,6 +9,8 @@ import { DeleteCharacterButton } from "@/components/DeleteCharacterButton";
 import { AccountActions } from "@/components/AccountActions";
 import { CreatePlayerForm } from "@/components/CreatePlayerForm";
 import { QuickStagePanel } from "@/components/QuickStagePanel";
+import { ConditionBadges } from "@/components/Conditions";
+import { parseStringArray } from "@/lib/character";
 import {
   classLabel,
   computeMaxPv,
@@ -180,6 +182,9 @@ export default async function MasterDashboard() {
                         ? ` · desde ${new Date(c.occultismUnlockedAt).toLocaleDateString("pt-BR")}`
                         : ""}
                     </p>
+                    <div className="mt-1">
+                      <ConditionBadges condicoes={parseStringArray(c.condicoes)} />
+                    </div>
                     </div>
                   </div>
                   <Link

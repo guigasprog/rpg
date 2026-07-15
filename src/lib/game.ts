@@ -214,6 +214,78 @@ export const PROPOSTA = {
   RECUSADA: "RECUSADA",
 } as const;
 
+// ---------------- Condições / estados ----------------
+
+export interface ConditionInfo {
+  key: string;
+  label: string;
+  desc: string;
+  // "tick" opcional aplicado ao apertar "aplicar efeito" (por rodada).
+  efeitoPv?: number;
+  efeitoSan?: number;
+  irreal?: boolean; // estado sobrenatural (estiliza diferente)
+}
+
+export const CONDITIONS: ConditionInfo[] = [
+  {
+    key: "FERIDO",
+    label: "Ferido",
+    desc: "Machucado. Desvantagem em esforços físicos até tratar.",
+  },
+  {
+    key: "SANGRANDO",
+    label: "Sangrando",
+    desc: "Perde 2 PV a cada rodada até estancar.",
+    efeitoPv: -2,
+  },
+  {
+    key: "ENVENENADO",
+    label: "Envenenado",
+    desc: "Perde 1 PV por rodada; a mente também turva.",
+    efeitoPv: -1,
+  },
+  {
+    key: "ATORDOADO",
+    label: "Atordoado",
+    desc: "Perde a próxima ação. O mundo gira.",
+  },
+  {
+    key: "EM_PANICO",
+    label: "Em Pânico",
+    desc: "Só consegue fugir ou se esconder. Perde 1 de Sanidade por rodada.",
+    efeitoSan: -1,
+  },
+  {
+    key: "AMALDICOADO",
+    label: "Amaldiçoado",
+    desc: "Algo o marcou. O Mestre sabe o quê.",
+    irreal: true,
+  },
+  {
+    key: "ENLOUQUECENDO",
+    label: "Enlouquecendo",
+    desc: "A mente se desfia. Perde 2 de Sanidade por rodada.",
+    efeitoSan: -2,
+    irreal: true,
+  },
+  {
+    key: "POSSUIDO",
+    label: "Possuído",
+    desc: "A mente já não é bem sua. O Mestre pode conduzir.",
+    irreal: true,
+  },
+  {
+    key: "MARCADO",
+    label: "Marcado pelo Além",
+    desc: "O Irreal conhece seu endereço. Aparições o procuram.",
+    irreal: true,
+  },
+];
+
+export function getCondition(key: string): ConditionInfo | undefined {
+  return CONDITIONS.find((c) => c.key === key);
+}
+
 // ---------------- Dados de dano ----------------
 
 // "" = item sem dano (não é arma).

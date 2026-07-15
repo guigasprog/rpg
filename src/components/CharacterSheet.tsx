@@ -27,6 +27,7 @@ import {
   unlockedMilestones,
 } from "@/lib/game";
 import { ResourceMeter } from "@/components/ResourceMeter";
+import { ConditionBadges } from "@/components/Conditions";
 import { DiceRoller } from "@/components/DiceRoller";
 import { WeaponRoller } from "@/components/WeaponRoller";
 import {
@@ -267,6 +268,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
           </span>
         )}
         <span className="badge badge-nivel">{levelLabel(character.nivel)}</span>
+        <ConditionBadges condicoes={character.condicoes} />
         {milestones.length > 0 && (
           <span className="typewriter text-xs text-paper/60">
             {milestones.length} habilidade(s) de marco
