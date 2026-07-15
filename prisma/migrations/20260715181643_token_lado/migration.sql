@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "MapToken" ADD COLUMN     "lado" TEXT NOT NULL DEFAULT 'ALIADO';

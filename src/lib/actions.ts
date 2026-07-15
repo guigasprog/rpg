@@ -1133,10 +1133,13 @@ export async function addMyToken(characterId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-// Mestre adiciona um token avulso (inimigo/PNJ), com imagem opcional.
+const LADOS_VALIDOS = ["ALIADO", "INIMIGO", "NEUTRO"];
+
+// Mestre adiciona um token avulso (inimigo/PNJ), com imagem e lado opcionais.
 export async function addMapTokenCustom(
   nome: string,
   imageUrl: string,
+  lado: string = "INIMIGO",
 ): Promise<ActionResult> {
   try {
     await requireMaster();
@@ -1150,12 +1153,31 @@ export async function addMapTokenCustom(
     data: {
       nome: n,
       imageUrl: (imageUrl ?? "").trim() || null,
+      lado: LADOS_VALIDOS.includes(lado) ? lado : "INIMIGO",
       x: (count % 8) * map.cell,
       y: Math.floor(count / 8) * map.cell,
     },
   });
   revalidateMapa();
   return { ok: true };
+}
+
+// Define o lado do token (aliado/inimigo/neutro). Mestre ou dono.
+export async function setTokenLado(
+  id: string,
+  lado: string,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  if (!LADOS_VALIDOS.includes(lado)) return fail("Lado inválido.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id)
+    return fail("Você só altera o seu token.");
+  await prisma.mapToken.update({ where: { id }, data: { lado } });
+  revalidateMapa();
+  return { ok: true, id };
 }
 
 export async function moveMapToken(

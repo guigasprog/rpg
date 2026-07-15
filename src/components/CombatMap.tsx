@@ -8,6 +8,7 @@ import {
   limparTokens,
   moveMapToken,
   removeMapToken,
+  setTokenLado,
   updateMapSettings,
 } from "@/lib/actions";
 import {
@@ -63,8 +64,19 @@ interface Token {
   imageUrl: string | null;
   characterId: string | null;
   ownerId: string | null;
+  lado: string;
   x: number;
   y: number;
+}
+
+const LADOS = [
+  { key: "ALIADO", label: "Aliado", cor: "#4ade80" },
+  { key: "INIMIGO", label: "Inimigo", cor: "#b0332c" },
+  { key: "NEUTRO", label: "Neutro", cor: "#e0c060" },
+];
+
+function ladoCor(lado: string): string {
+  return LADOS.find((l) => l.key === lado)?.cor ?? "#e0c060";
 }
 interface CharLite {
   id: string;
@@ -108,6 +120,7 @@ export function CombatMap({
   const [rowsInput, setRowsInput] = useState(initial.map.rows);
   const [tkNome, setTkNome] = useState("");
   const [tkImg, setTkImg] = useState("");
+  const [tkLado, setTkLado] = useState("INIMIGO");
 
   const isMaster = data.isMaster;
   const cell = data.map.cell;
@@ -461,6 +474,22 @@ export function CombatMap({
                 onChange={(e) => setTkImg(e.target.value)}
                 placeholder="Imagem (URL, opcional)"
               />
+              <div className="flex items-center gap-1">
+                {LADOS.map((l) => (
+                  <button
+                    key={l.key}
+                    type="button"
+                    onClick={() => setTkLado(l.key)}
+                    className={`typewriter rounded-full px-2 py-0.5 text-[0.65rem] ${tkLado === l.key ? "text-ink" : "text-sepia"}`}
+                    style={{
+                      background: tkLado === l.key ? l.cor : "transparent",
+                      border: `1px solid ${l.cor}`,
+                    }}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -468,7 +497,7 @@ export function CombatMap({
                   disabled={!tkNome.trim() && !tkImg.trim()}
                   onClick={() =>
                     run(async () => {
-                      const r = await addMapTokenCustom(tkNome, tkImg);
+                      const r = await addMapTokenCustom(tkNome, tkImg, tkLado);
                       if (r.ok) {
                         setTkNome("");
                         setTkImg("");
@@ -494,10 +523,25 @@ export function CombatMap({
           </>
         )}
 
+        <div className="flex flex-wrap items-center gap-3">
+          {LADOS.map((l) => (
+            <span
+              key={l.key}
+              className="typewriter inline-flex items-center gap-1 text-[0.65rem] text-paper/60"
+            >
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{ background: l.cor }}
+              />
+              {l.label}
+            </span>
+          ))}
+        </div>
         <p className="typewriter text-[0.7rem] text-paper/45">
-          Arraste seu token (encaixa na grade). Clique num token e aperte{" "}
-          <strong>Delete</strong> para removê-lo. Arraste o fundo para andar; a
-          roda do mouse dá zoom só sobre o mapa.
+          Arraste seu token (encaixa na grade). Clique para selecionar: aperte{" "}
+          <strong>Delete</strong> para remover ou use os pontos coloridos acima
+          do token para mudar o lado. Duplo-clique abre a ficha rápida. A roda
+          do mouse dá zoom só sobre o mapa.
         </p>
         {erro && <p className="typewriter text-xs text-stamp">{erro}</p>}
       </aside>
@@ -592,7 +636,13 @@ export function CombatMap({
                   className={`absolute select-none ${meu ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                 >
                   <div
-                    className={`token relative h-full w-full overflow-hidden rounded-full ${sel === t.id ? "ring-2 ring-stamp-bright" : ""}`}
+                    className="token relative h-full w-full overflow-hidden rounded-full"
+                    style={{
+                      boxShadow:
+                        sel === t.id
+                          ? `0 0 0 3px ${ladoCor(t.lado)}, 0 0 0 6px rgba(231,220,196,0.9)`
+                          : `0 0 0 3px ${ladoCor(t.lado)}`,
+                    }}
                   >
                     {t.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -608,6 +658,31 @@ export function CombatMap({
                       </span>
                     )}
                   </div>
+                  {sel === t.id && meu && (
+                    <div
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="absolute left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-ink/90 px-1.5 py-1 shadow"
+                      style={{ top: -cell * 0.42 }}
+                    >
+                      {LADOS.map((l) => (
+                        <button
+                          key={l.key}
+                          type="button"
+                          onClick={() => run(() => setTokenLado(t.id, l.key))}
+                          title={l.label}
+                          className="h-3.5 w-3.5 rounded-full"
+                          style={{
+                            background: l.cor,
+                            outline:
+                              t.lado === l.key
+                                ? "2px solid rgba(231,220,196,0.9)"
+                                : "none",
+                            outlineOffset: 1,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                   {t.nome && (
                     <div
                       className="typewriter mt-0.5 truncate text-center text-paper-light"

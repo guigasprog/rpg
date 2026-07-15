@@ -113,6 +113,7 @@ model MapToken {
   imageUrl    String?
   characterId String? // se veio de um personagem (retrato)
   ownerId     String? // quem controla o token (jogador dono); null = só Mestre
+  lado        String   @default("ALIADO") // ALIADO | INIMIGO | NEUTRO
   x           Int      @default(0)
   y           Int      @default(0)
   createdAt   DateTime @default(now())
