@@ -154,6 +154,7 @@ export function CombatMap({
   const [qtd, setQtd] = useState(1);
   const [placing, setPlacing] = useState<PlaceItem | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [sizes, setSizes] = useState<Record<string, number>>(() => {
     const m: Record<string, number> = {};
     initial.tokens.forEach((t) => (m[t.id] = t.size > 0 ? t.size : initial.map.cell));
@@ -375,6 +376,11 @@ export function CombatMap({
 
   function onDownToken(e: React.PointerEvent, t: Token) {
     e.stopPropagation();
+    // Ctrl+clique: amplia a imagem do token.
+    if (e.ctrlKey || e.metaKey) {
+      if (t.imageUrl) setZoomUrl(t.imageUrl);
+      return;
+    }
     const canMove = isMaster || t.ownerId === data.viewerId;
     if (canMove) (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     const p = pos[t.id] ?? { x: t.x, y: t.y };
@@ -778,8 +784,9 @@ export function CombatMap({
           Arraste para o mapa. Clique para selecionar: <strong>Delete</strong>{" "}
           remove; a alça ◢ redimensiona (segure <strong>Shift</strong> para
           tamanho livre); os pontos e ícones acima do token mudam lado e status.
-          Duplo-clique abre a ficha rápida. {isMaster ? "Ctrl+C / Ctrl+V copia e cola. " : ""}
-          A roda do mouse dá zoom só sobre o mapa.
+          Duplo-clique abre a ficha rápida; Ctrl+clique amplia a imagem.{" "}
+          {isMaster ? "Ctrl+C / Ctrl+V copia e cola. " : ""}A roda do mouse dá
+          zoom só sobre o mapa.
         </p>
         {erro && <p className="typewriter text-xs text-stamp">{erro}</p>}
       </aside>
@@ -1015,6 +1022,28 @@ export function CombatMap({
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Ctrl+clique: imagem do token em tela cheia */}
+      {zoomUrl && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setZoomUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={zoomUrl}
+            alt=""
+            className="max-h-full max-w-full object-contain grayscale"
+          />
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded bg-ink/80 px-3 py-1 text-paper-light"
+            onClick={() => setZoomUrl(null)}
+          >
+            ✕
+          </button>
         </div>
       )}
 
