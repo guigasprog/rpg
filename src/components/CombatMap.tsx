@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addMapTokenCustom,
   addMyToken,
+  ajustarRecursos,
   limparTokens,
   moveMapToken,
   removeMapToken,
@@ -24,6 +25,7 @@ function fmtSigned(n: number): string {
 
 interface FichaRapida {
   id: string;
+  ownerId: string | null;
   name: string;
   classe: string;
   subclasse: string | null;
@@ -98,6 +100,7 @@ export function CombatMap({
   const [erro, setErro] = useState<string | null>(null);
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
+  const [qtd, setQtd] = useState(1);
 
   const [bgUrlInput, setBgUrlInput] = useState(initial.map.backgroundUrl ?? "");
   const [cellInput, setCellInput] = useState(initial.map.cell);
@@ -289,6 +292,17 @@ export function CombatMap({
     } finally {
       setFichaLoading(false);
     }
+  }
+
+  async function ajustar(dPv: number, dSan: number) {
+    if (!ficha) return;
+    const id = ficha.id;
+    // Atualização otimista dos números no drawer.
+    setFicha((f) =>
+      f ? { ...f, pvAtual: f.pvAtual + dPv, sanAtual: f.sanAtual + dSan } : f,
+    );
+    await run(() => ajustarRecursos(id, dPv, dSan));
+    void abrirFicha(id);
   }
 
   const jaTenhoToken = (charId: string) =>
@@ -694,6 +708,56 @@ export function CombatMap({
                     current={ficha.sanAtual}
                     max={ficha.sanMax}
                   />
+                  {(isMaster || ficha.ownerId === data.viewerId) && (
+                    <div className="space-y-2 border-t border-sepia/25 pt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="label">Quantidade</span>
+                        <input
+                          type="number"
+                          min={1}
+                          className="field w-20 text-sm"
+                          value={qtd}
+                          onChange={(e) =>
+                            setQtd(Math.max(1, Math.trunc(Number(e.target.value) || 1)))
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          className="btn btn-dark tap text-xs"
+                          onClick={() => ajustar(-qtd, 0)}
+                          title="Dano"
+                        >
+                          − PV
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-dark tap text-xs"
+                          onClick={() => ajustar(qtd, 0)}
+                          title="Cura"
+                        >
+                          ＋ PV
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-dark tap text-xs"
+                          onClick={() => ajustar(0, -qtd)}
+                          title="Perda de Sanidade"
+                        >
+                          − SAN
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-dark tap text-xs"
+                          onClick={() => ajustar(0, qtd)}
+                          title="Recuperar Sanidade"
+                        >
+                          ＋ SAN
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

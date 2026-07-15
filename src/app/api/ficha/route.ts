@@ -23,6 +23,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     id: ch.id,
+    ownerId: ch.ownerId,
     name: ch.name,
     classe: ch.classe,
     subclasse: ch.subclasse,

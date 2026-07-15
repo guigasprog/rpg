@@ -1191,6 +1191,33 @@ export async function removeMapToken(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+// Ajuste rápido de PV/SAN (dano/cura) — usado na ficha rápida do mapa.
+// Mestre em qualquer um; jogador só no próprio personagem. Sem clamp
+// (aceita sobrevida e negativos, como o resto do sistema).
+export async function ajustarRecursos(
+  id: string,
+  dPv: number,
+  dSan: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const ch = await prisma.character.findUnique({ where: { id } });
+  if (!ch) return fail("Personagem não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && ch.ownerId !== viewer.id)
+    return fail("Só o seu próprio personagem.");
+  await prisma.character.update({
+    where: { id },
+    data: {
+      pvAtual: ch.pvAtual + (Math.trunc(dPv) || 0),
+      sanAtual: ch.sanAtual + (Math.trunc(dSan) || 0),
+    },
+  });
+  revalidateCharacter(id);
+  revalidateMapa();
+  return { ok: true, id };
+}
+
 export async function limparTokens(): Promise<ActionResult> {
   try {
     await requireMaster();
