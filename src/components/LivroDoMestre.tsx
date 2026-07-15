@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   createLoreEntry,
   deleteLoreEntry,
+  duplicateLoreEntry,
   setLoreRevealed,
   updateLoreEntry,
 } from "@/lib/actions";
@@ -117,6 +118,15 @@ export function LivroDoMestre({ entries }: { entries: LoreEntryDTO[] }) {
     startTransition(async () => {
       const res = await setLoreRevealed(id, revelado);
       if (!res.ok) setError(res.error ?? "Falha.");
+      else router.refresh();
+    });
+  }
+
+  function duplicar(id: string) {
+    setError(null);
+    startTransition(async () => {
+      const res = await duplicateLoreEntry(id);
+      if (!res.ok) setError(res.error ?? "Falha ao duplicar.");
       else router.refresh();
     });
   }
@@ -362,6 +372,7 @@ export function LivroDoMestre({ entries }: { entries: LoreEntryDTO[] }) {
                     pending={pending}
                     onEdit={() => startEdit(e)}
                     onDelete={() => remover(e.id, e.titulo)}
+                    onDuplicate={() => duplicar(e.id)}
                     onToggleReveal={() => toggleReveal(e.id, !e.revelado)}
                     onZoom={() => e.imagemUrl && setZoomUrl(e.imagemUrl)}
                   />
@@ -420,6 +431,7 @@ function MonsterCard({
   pending,
   onEdit,
   onDelete,
+  onDuplicate,
   onToggleReveal,
   onZoom,
 }: {
@@ -427,6 +439,7 @@ function MonsterCard({
   pending: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onToggleReveal: () => void;
   onZoom: () => void;
 }) {
@@ -498,6 +511,15 @@ function MonsterCard({
           className="btn btn-ghost text-xs"
         >
           Editar
+        </button>
+        <button
+          type="button"
+          onClick={onDuplicate}
+          disabled={pending}
+          className="btn btn-ghost text-xs"
+          title="Criar uma variação a partir desta entrada"
+        >
+          Duplicar
         </button>
         <button
           type="button"

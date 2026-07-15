@@ -672,6 +672,32 @@ export async function updateLoreEntry(
   return { ok: true, id };
 }
 
+// GM duplica uma entrada (variação de um monstro/NPC). A cópia nasce fora de
+// cena e com o título marcado, pronta para ser ajustada.
+export async function duplicateLoreEntry(id: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const orig = await prisma.loreEntry.findUnique({ where: { id } });
+  if (!orig) return fail("Entrada não encontrada.");
+  const titulo = `${orig.titulo} (cópia)`.slice(0, 160);
+  const entry = await prisma.loreEntry.create({
+    data: {
+      categoria: orig.categoria,
+      titulo,
+      conteudo: orig.conteudo,
+      perigo: orig.perigo,
+      imagemUrl: orig.imagemUrl,
+      revelado: false,
+    },
+  });
+  revalidatePath("/mestre/livro");
+  revalidatePath("/mestre");
+  return { ok: true, id: entry.id };
+}
+
 // GM libera/oculta uma entrada como card de combate para os jogadores.
 export async function setLoreRevealed(
   id: string,
