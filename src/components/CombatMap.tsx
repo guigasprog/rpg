@@ -9,6 +9,43 @@ import {
   removeMapToken,
   updateMapSettings,
 } from "@/lib/actions";
+import {
+  ATTRIBUTES,
+  classLabel,
+  levelLabel,
+  subclassLabel,
+} from "@/lib/game";
+import { ResourceMeter } from "@/components/ResourceMeter";
+import { ConditionBadges } from "@/components/Conditions";
+
+function fmtSigned(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
+
+interface FichaRapida {
+  id: string;
+  name: string;
+  classe: string;
+  subclasse: string | null;
+  nivel: number;
+  attrInvestigar: number;
+  attrCombate: number;
+  attrLabia: number;
+  attrMente: number;
+  pvAtual: number;
+  pvMax: number;
+  sanAtual: number;
+  sanMax: number;
+  condicoes: string[];
+  inventory: {
+    nome: string;
+    dano: string;
+    qtd: number;
+    usos: number;
+    efeitoPv: number;
+    efeitoSan: number;
+  }[];
+}
 
 interface MapCfg {
   id: string;
@@ -59,6 +96,8 @@ export function CombatMap({
   const [view, setView] = useState({ scale: 1, tx: 24, ty: 24 });
   const [sel, setSel] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [ficha, setFicha] = useState<FichaRapida | null>(null);
+  const [fichaLoading, setFichaLoading] = useState(false);
 
   const [bgUrlInput, setBgUrlInput] = useState(initial.map.backgroundUrl ?? "");
   const [cellInput, setCellInput] = useState(initial.map.cell);
@@ -66,7 +105,6 @@ export function CombatMap({
   const [rowsInput, setRowsInput] = useState(initial.map.rows);
   const [tkNome, setTkNome] = useState("");
   const [tkImg, setTkImg] = useState("");
-  const [selChar, setSelChar] = useState(chars[0]?.id ?? "");
 
   const isMaster = data.isMaster;
   const cell = data.map.cell;
@@ -237,6 +275,22 @@ export function CombatMap({
     }
   }
 
+  async function abrirFicha(characterId: string) {
+    setFichaLoading(true);
+    setFicha(null);
+    try {
+      const res = await fetch(`/api/ficha?id=${encodeURIComponent(characterId)}`, {
+        cache: "no-store",
+      });
+      if (res.ok) setFicha((await res.json()) as FichaRapida);
+      else setErro("Não foi possível abrir a ficha.");
+    } catch {
+      setErro("Falha ao abrir a ficha.");
+    } finally {
+      setFichaLoading(false);
+    }
+  }
+
   const jaTenhoToken = (charId: string) =>
     data.tokens.some((t) => t.characterId === charId);
 
@@ -246,29 +300,45 @@ export function CombatMap({
       <aside className="mb-3 space-y-3 lg:mb-0 lg:max-h-[80vh] lg:w-80 lg:shrink-0 lg:overflow-y-auto">
         {chars.length > 0 && (
           <section className="paper paper-edge rounded-md p-3">
-            <p className="label mb-1">Seu token</p>
-            <div className="flex items-center gap-1">
-              {chars.length > 1 && (
-                <select
-                  className="field text-sm"
-                  value={selChar}
-                  onChange={(e) => setSelChar(e.target.value)}
-                >
-                  {chars.map((c) => (
-                    <option key={c.id} value={c.id}>
+            <p className="label mb-2">
+              {isMaster ? "Colocar personagem" : "Seus personagens"}
+            </p>
+            <div className="max-h-56 space-y-1 overflow-y-auto">
+              {chars.map((c) => {
+                const on = jaTenhoToken(c.id);
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5"
+                  >
+                    <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-black/15">
+                      {c.portraitUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.portraitUrl}
+                          alt=""
+                          className="h-full w-full object-cover grayscale"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-xs text-sepia/50">
+                          ?
+                        </span>
+                      )}
+                    </span>
+                    <span className="typewriter min-w-0 flex-1 truncate text-sm text-sepia-ink">
                       {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                className="btn btn-primary tap text-xs"
-                disabled={!selChar || jaTenhoToken(selChar)}
-                onClick={() => run(() => addMyToken(selChar))}
-              >
-                {jaTenhoToken(selChar) ? "no mapa ✓" : "＋ Colocar"}
-              </button>
+                    </span>
+                    <button
+                      type="button"
+                      className={`btn tap text-[0.7rem] ${on ? "btn-ghost" : "btn-primary"}`}
+                      disabled={on}
+                      onClick={() => run(() => addMyToken(c.id))}
+                    >
+                      {on ? "no mapa ✓" : "＋ puxar"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
@@ -500,6 +570,10 @@ export function CombatMap({
                 <div
                   key={t.id}
                   onPointerDown={(e) => onDownToken(e, t)}
+                  onDoubleClick={() => {
+                    if (t.characterId) void abrirFicha(t.characterId);
+                  }}
+                  title={t.characterId ? "Duplo-clique: ficha rápida" : undefined}
                   style={{ left: p.x, top: p.y, width: cell, height: cell }}
                   className={`absolute select-none ${meu ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                 >
@@ -534,6 +608,142 @@ export function CombatMap({
           </div>
         </div>
       </div>
+
+      {/* Ficha rápida (duplo-clique no token) */}
+      {(ficha || fichaLoading) && (
+        <div
+          className="fixed inset-0 z-[85] flex justify-end bg-black/60"
+          onClick={() => {
+            setFicha(null);
+            setFichaLoading(false);
+          }}
+        >
+          <div
+            className="h-full w-[min(92vw,24rem)] overflow-y-auto bg-ink/95 shadow-2xl backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {fichaLoading || !ficha ? (
+              <p className="typewriter p-6 text-sm text-paper/60">
+                Abrindo ficha…
+              </p>
+            ) : (
+              <div className="space-y-4 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="display text-xl text-paper-light">
+                      {ficha.name}
+                    </h3>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <span
+                        className={`badge ${ficha.classe === "OCULTISTA" ? "badge-ocultista" : "badge-classe"}`}
+                      >
+                        {classLabel(ficha.classe)}
+                      </span>
+                      {ficha.subclasse && (
+                        <span className="badge badge-classe">
+                          {subclassLabel(ficha.subclasse)}
+                        </span>
+                      )}
+                      <span className="badge badge-nivel">
+                        {levelLabel(ficha.nivel)}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFicha(null)}
+                    className="rounded bg-black/40 px-2 text-paper/70"
+                    aria-label="Fechar"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {ficha.condicoes.length > 0 && (
+                  <ConditionBadges condicoes={ficha.condicoes} />
+                )}
+
+                <div className="grid grid-cols-4 gap-2">
+                  {ATTRIBUTES.map((a) => {
+                    const val = (ficha as unknown as Record<string, number>)[
+                      a.key
+                    ];
+                    return (
+                      <div key={a.key} className="text-center">
+                        <div className="attr-stamp mx-auto flex h-12 w-12 items-center justify-center bg-paper-light">
+                          <span className="typewriter text-lg">
+                            {fmtSigned(val)}
+                          </span>
+                        </div>
+                        <div className="typewriter mt-1 text-[0.6rem] text-paper/60">
+                          {a.code}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3 rounded-md bg-black/20 p-3">
+                  <ResourceMeter
+                    kind="pv"
+                    current={ficha.pvAtual}
+                    max={ficha.pvMax}
+                  />
+                  <ResourceMeter
+                    kind="san"
+                    current={ficha.sanAtual}
+                    max={ficha.sanMax}
+                  />
+                </div>
+
+                <div>
+                  <p className="label mb-1">Itens</p>
+                  {ficha.inventory.length === 0 ? (
+                    <p className="typewriter text-xs text-paper/40">
+                      Bolsos vazios.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {ficha.inventory.map((it, i) => (
+                        <li
+                          key={i}
+                          className="typewriter border-b border-dashed border-sepia/25 py-1 text-sm text-paper"
+                        >
+                          — {it.nome}
+                          {it.qtd > 1 ? (
+                            <span className="text-paper/50"> ×{it.qtd}</span>
+                          ) : null}
+                          {it.dano ? (
+                            <span className="ml-2 text-xs text-stamp-bright">
+                              ({it.dano})
+                            </span>
+                          ) : null}
+                          {(it.efeitoPv !== 0 || it.efeitoSan !== 0) && (
+                            <span className="ml-2 text-[0.62rem] text-emerald-300">
+                              {it.efeitoPv !== 0
+                                ? `${it.efeitoPv > 0 ? "+" : ""}${it.efeitoPv} PV`
+                                : ""}
+                              {it.efeitoPv !== 0 && it.efeitoSan !== 0
+                                ? " · "
+                                : ""}
+                              {it.efeitoSan !== 0
+                                ? `${it.efeitoSan > 0 ? "+" : ""}${it.efeitoSan} SAN`
+                                : ""}
+                            </span>
+                          )}
+                          <span className="ml-2 text-[0.6rem] text-paper/40">
+                            usos: {it.usos}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
