@@ -1047,6 +1047,178 @@ export async function aplicarCondicoesTick(id: string): Promise<ActionResult> {
   return { ok: true, id };
 }
 
+// ---------------- Mapa de combate ----------------
+
+function revalidateMapa() {
+  revalidatePath("/mapa");
+}
+
+const MAP_ID = "main";
+
+// Garante que o mapa singleton exista e devolve-o.
+export async function ensureMap() {
+  return prisma.gameMap.upsert({
+    where: { id: MAP_ID },
+    update: {},
+    create: { id: MAP_ID },
+  });
+}
+
+export async function updateMapSettings(input: {
+  backgroundUrl?: string;
+  cell?: number;
+  showGrid?: boolean;
+}): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const cell =
+    input.cell !== undefined
+      ? Math.max(16, Math.min(240, Math.trunc(input.cell) || 64))
+      : undefined;
+  await prisma.gameMap.upsert({
+    where: { id: MAP_ID },
+    update: {
+      backgroundUrl:
+        input.backgroundUrl !== undefined
+          ? input.backgroundUrl.trim() || null
+          : undefined,
+      cell,
+      showGrid: input.showGrid,
+    },
+    create: {
+      id: MAP_ID,
+      backgroundUrl: input.backgroundUrl?.trim() || null,
+      cell: cell ?? 64,
+      showGrid: input.showGrid ?? true,
+    },
+  });
+  revalidateMapa();
+  return { ok: true };
+}
+
+export async function updateMapBackground(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.gameMap.update({
+    where: { id: MAP_ID },
+    data: {
+      bgX: Math.trunc(x) || 0,
+      bgY: Math.trunc(y) || 0,
+      bgW: Math.max(40, Math.trunc(w) || 960),
+      bgH: Math.max(40, Math.trunc(h) || 640),
+    },
+  });
+  revalidateMapa();
+  return { ok: true };
+}
+
+// Jogador/Mestre coloca o token de um personagem (usa o retrato).
+export async function addMyToken(characterId: string): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const ch = await prisma.character.findUnique({ where: { id: characterId } });
+  if (!ch) return fail("Personagem não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && ch.ownerId !== viewer.id)
+    return fail("Só o seu próprio personagem.");
+  const existe = await prisma.mapToken.findFirst({ where: { characterId } });
+  if (existe) return { ok: true, id: existe.id };
+  const map = await ensureMap();
+  const n = await prisma.mapToken.count();
+  await prisma.mapToken.create({
+    data: {
+      nome: ch.name,
+      imageUrl: ch.portraitUrl,
+      characterId: ch.id,
+      ownerId: ch.ownerId,
+      x: (n % 8) * map.cell,
+      y: Math.floor(n / 8) * map.cell,
+    },
+  });
+  revalidateMapa();
+  return { ok: true };
+}
+
+// Mestre adiciona um token avulso (inimigo/PNJ), com imagem opcional.
+export async function addMapTokenCustom(
+  nome: string,
+  imageUrl: string,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const n = (nome ?? "").trim().slice(0, 80);
+  const map = await ensureMap();
+  const count = await prisma.mapToken.count();
+  await prisma.mapToken.create({
+    data: {
+      nome: n,
+      imageUrl: (imageUrl ?? "").trim() || null,
+      x: (count % 8) * map.cell,
+      y: Math.floor(count / 8) * map.cell,
+    },
+  });
+  revalidateMapa();
+  return { ok: true };
+}
+
+export async function moveMapToken(
+  id: string,
+  x: number,
+  y: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id)
+    return fail("Você só move o seu token.");
+  await prisma.mapToken.update({
+    where: { id },
+    data: { x: Math.trunc(x) || 0, y: Math.trunc(y) || 0 },
+  });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
+export async function removeMapToken(id: string): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id)
+    return fail("Você só remove o seu token.");
+  await prisma.mapToken.delete({ where: { id } });
+  revalidateMapa();
+  return { ok: true };
+}
+
+export async function limparTokens(): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.mapToken.deleteMany({});
+  revalidateMapa();
+  return { ok: true };
+}
+
 // ---------------- Chat / Auditoria ----------------
 
 export async function enviarMensagem(texto: string): Promise<ActionResult> {

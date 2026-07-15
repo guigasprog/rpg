@@ -359,26 +359,39 @@ export function EvidenceCanvas({ initial }: { initial: Board }) {
             const a = anchor(l.fromId, iFrom);
             const b = anchor(l.toId, iTo);
             return (
-              <button
+              <div
                 key={`btn-${l.id}`}
-                type="button"
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  const novo = window.prompt(
-                    "Fato desta ligação (vazio p/ manter). Digite APAGAR para remover.",
-                    l.label,
-                  );
-                  if (novo === null) return;
-                  if (novo.trim().toUpperCase() === "APAGAR")
-                    void run(() => deleteEvidenceLink(l.id));
-                  else void run(() => updateEvidenceLink(l.id, novo));
-                }}
-                className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-stamp text-[0.55rem] leading-none text-paper-light"
-                style={{ left: (a.x + b.x) / 2, top: (a.y + b.y) / 2 + 6 }}
-                title="Editar/remover ligação"
+                className="absolute flex -translate-x-1/2 -translate-y-1/2 gap-1"
+                style={{ left: (a.x + b.x) / 2, top: (a.y + b.y) / 2 + 8 }}
               >
-                ✎
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const novo = window.prompt(
+                      "Fato desta ligação:",
+                      l.label,
+                    );
+                    if (novo === null) return;
+                    void run(() => updateEvidenceLink(l.id, novo));
+                  }}
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-sepia-ink text-[0.55rem] leading-none text-paper-light shadow"
+                  title="Editar o fato da ligação"
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Remover este ligamento?"))
+                      void run(() => deleteEvidenceLink(l.id));
+                  }}
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-stamp text-[0.6rem] leading-none text-paper-light shadow"
+                  title="Remover ligamento"
+                >
+                  ✕
+                </button>
+              </div>
             );
           })}
 

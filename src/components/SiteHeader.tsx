@@ -27,6 +27,9 @@ export async function SiteHeader() {
           <Link href="/provas" className="btn btn-ghost tap text-xs">
             Provas
           </Link>
+          <Link href="/mapa" className="btn btn-ghost tap text-xs">
+            Mapa
+          </Link>
           <Link href="/manual" className="btn btn-ghost tap text-xs">
             Manual
           </Link>

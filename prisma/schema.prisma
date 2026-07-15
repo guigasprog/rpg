@@ -90,6 +90,33 @@ model EvidenceNote {
   @@index([evidenceId])
 }
 
+// Mapa de combate (tabletop). Singleton: id fixo "main".
+model GameMap {
+  id            String  @id @default("main")
+  backgroundUrl String? // imagem de fundo definida pelo Mestre (opcional)
+  bgX           Int     @default(0)
+  bgY           Int     @default(0)
+  bgW           Int     @default(960) // largura da imagem (esticável)
+  bgH           Int     @default(640) // altura da imagem (esticável)
+  cell          Int     @default(64) // tamanho da célula quadrada (px)
+  showGrid      Boolean @default(true)
+  updatedAt     DateTime @updatedAt
+}
+
+// Peça no mapa (token). Quadrada, do tamanho da célula. Imagem opcional.
+model MapToken {
+  id          String   @id @default(cuid())
+  nome        String   @default("")
+  imageUrl    String?
+  characterId String? // se veio de um personagem (retrato)
+  ownerId     String? // quem controla o token (jogador dono); null = só Mestre
+  x           Int      @default(0)
+  y           Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([ownerId])
+}
+
 // Ligação entre duas provas ("barbante") para amarrar um fato.
 model EvidenceLink {
   id        String   @id @default(cuid())

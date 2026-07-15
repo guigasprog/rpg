@@ -86,6 +86,9 @@ export default async function MasterDashboard() {
           <Link href="/mestre/provas" className="btn btn-dark tap text-xs">
             🕵️ Mural de Provas
           </Link>
+          <Link href="/mapa" className="btn btn-dark tap text-xs">
+            🗺️ Mapa de Combate
+          </Link>
           <Link href="/manual" className="btn btn-dark tap text-xs">
             📰 Manual da mesa
           </Link>
