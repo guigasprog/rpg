@@ -20,10 +20,8 @@ export async function GET() {
     map: map ?? {
       id: "main",
       backgroundUrl: null,
-      bgX: 0,
-      bgY: 0,
-      bgW: 960,
-      bgH: 640,
+      cols: 20,
+      rows: 14,
       cell: 64,
       showGrid: true,
     },

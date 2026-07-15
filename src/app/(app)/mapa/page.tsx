@@ -23,10 +23,8 @@ export default async function MapaPage() {
     map: map ?? {
       id: "main",
       backgroundUrl: null,
-      bgX: 0,
-      bgY: 0,
-      bgW: 960,
-      bgH: 640,
+      cols: 20,
+      rows: 14,
       cell: 64,
       showGrid: true,
     },
@@ -45,12 +43,15 @@ export default async function MapaPage() {
         <p className="typewriter text-sm text-sepia">
           Mesa tática ao vivo. Coloque seu token e mova-o pela grade.{" "}
           {isMaster
-            ? "Defina a imagem de fundo, o tamanho da célula e posicione o mapa."
+            ? "Defina o campo X×Y e a imagem de fundo — ela se encaixa nos quadros."
             : ""}
         </p>
       </header>
 
-      <CombatMap initial={initial} chars={chars} />
+      {/* Full-bleed: usa a largura toda da tela (desktop). */}
+      <div className="mx-[calc(50%-50vw)] w-screen px-4">
+        <CombatMap initial={initial} chars={chars} />
+      </div>
     </main>
   );
 }

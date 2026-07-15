@@ -1067,6 +1067,8 @@ export async function ensureMap() {
 export async function updateMapSettings(input: {
   backgroundUrl?: string;
   cell?: number;
+  cols?: number;
+  rows?: number;
   showGrid?: boolean;
 }): Promise<ActionResult> {
   try {
@@ -1074,10 +1076,11 @@ export async function updateMapSettings(input: {
   } catch (e) {
     return fail((e as Error).message);
   }
-  const cell =
-    input.cell !== undefined
-      ? Math.max(16, Math.min(240, Math.trunc(input.cell) || 64))
-      : undefined;
+  const clampCell = (n: number) => Math.max(16, Math.min(240, Math.trunc(n) || 64));
+  const clampDim = (n: number) => Math.max(1, Math.min(80, Math.trunc(n) || 1));
+  const cell = input.cell !== undefined ? clampCell(input.cell) : undefined;
+  const cols = input.cols !== undefined ? clampDim(input.cols) : undefined;
+  const rows = input.rows !== undefined ? clampDim(input.rows) : undefined;
   await prisma.gameMap.upsert({
     where: { id: MAP_ID },
     update: {
@@ -1086,37 +1089,17 @@ export async function updateMapSettings(input: {
           ? input.backgroundUrl.trim() || null
           : undefined,
       cell,
+      cols,
+      rows,
       showGrid: input.showGrid,
     },
     create: {
       id: MAP_ID,
       backgroundUrl: input.backgroundUrl?.trim() || null,
       cell: cell ?? 64,
+      cols: cols ?? 20,
+      rows: rows ?? 14,
       showGrid: input.showGrid ?? true,
-    },
-  });
-  revalidateMapa();
-  return { ok: true };
-}
-
-export async function updateMapBackground(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): Promise<ActionResult> {
-  try {
-    await requireMaster();
-  } catch (e) {
-    return fail((e as Error).message);
-  }
-  await prisma.gameMap.update({
-    where: { id: MAP_ID },
-    data: {
-      bgX: Math.trunc(x) || 0,
-      bgY: Math.trunc(y) || 0,
-      bgW: Math.max(40, Math.trunc(w) || 960),
-      bgH: Math.max(40, Math.trunc(h) || 640),
     },
   });
   revalidateMapa();

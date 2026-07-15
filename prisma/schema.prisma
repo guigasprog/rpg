@@ -92,14 +92,17 @@ model EvidenceNote {
 
 // Mapa de combate (tabletop). Singleton: id fixo "main".
 model GameMap {
-  id            String  @id @default("main")
+  id            String   @id @default("main")
   backgroundUrl String? // imagem de fundo definida pelo Mestre (opcional)
-  bgX           Int     @default(0)
-  bgY           Int     @default(0)
-  bgW           Int     @default(960) // largura da imagem (esticável)
-  bgH           Int     @default(640) // altura da imagem (esticável)
-  cell          Int     @default(64) // tamanho da célula quadrada (px)
-  showGrid      Boolean @default(true)
+  cols          Int      @default(20) // nº de quadros na horizontal (X)
+  rows          Int      @default(14) // nº de quadros na vertical (Y)
+  cell          Int      @default(64) // tamanho de cada quadro (px)
+  showGrid      Boolean  @default(true)
+  // (legado, sem uso: a área agora é derivada de cols×rows×cell)
+  bgX           Int      @default(0)
+  bgY           Int      @default(0)
+  bgW           Int      @default(960)
+  bgH           Int      @default(640)
   updatedAt     DateTime @updatedAt
 }
 
