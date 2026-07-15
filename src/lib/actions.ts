@@ -683,6 +683,7 @@ export async function setLoreRevealed(
     return fail((e as Error).message);
   }
   await prisma.loreEntry.update({ where: { id }, data: { revelado } });
+  revalidatePath("/mestre");
   revalidatePath("/mestre/livro");
   revalidatePath("/manual");
   return { ok: true, id };
@@ -729,8 +730,32 @@ export async function setCharacterOnStage(
     data: { mostrarNaMesa: mostrar },
   });
   revalidateCharacter(id);
+  revalidatePath("/mestre");
   revalidatePath("/manual");
   return { ok: true, id };
+}
+
+// GM tira tudo de cena de uma vez (aparições do Livro + retratos na mesa).
+export async function limparCena(): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.$transaction([
+    prisma.loreEntry.updateMany({
+      where: { revelado: true },
+      data: { revelado: false },
+    }),
+    prisma.character.updateMany({
+      where: { mostrarNaMesa: true },
+      data: { mostrarNaMesa: false },
+    }),
+  ]);
+  revalidatePath("/mestre");
+  revalidatePath("/mestre/livro");
+  revalidatePath("/manual");
+  return { ok: true };
 }
 
 // ---------------- Chat / Auditoria ----------------

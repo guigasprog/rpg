@@ -8,6 +8,7 @@ import { ArchiveToggle } from "@/components/ArchiveToggle";
 import { DeleteCharacterButton } from "@/components/DeleteCharacterButton";
 import { AccountActions } from "@/components/AccountActions";
 import { CreatePlayerForm } from "@/components/CreatePlayerForm";
+import { QuickStagePanel } from "@/components/QuickStagePanel";
 import {
   classLabel,
   computeMaxPv,
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 export default async function MasterDashboard() {
   const viewer = await requireMaster();
 
-  const [characters, players, iniciativaCount] = await Promise.all([
+  const [characters, players, iniciativaCount, loreRows] = await Promise.all([
     prisma.character.findMany({
       orderBy: { createdAt: "asc" },
       include: { owner: { select: { username: true } } },
@@ -36,6 +37,16 @@ export default async function MasterDashboard() {
       },
     }),
     prisma.initiativeEntry.count(),
+    prisma.loreEntry.findMany({
+      orderBy: [{ categoria: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        titulo: true,
+        categoria: true,
+        imagemUrl: true,
+        revelado: true,
+      },
+    }),
   ]);
 
   const jogadores = players.filter((p) => p.role !== "MASTER").length;
@@ -97,6 +108,16 @@ export default async function MasterDashboard() {
           </div>
         ))}
       </div>
+
+      <QuickStagePanel
+        lore={loreRows}
+        chars={characters.map((c) => ({
+          id: c.id,
+          name: c.name,
+          portraitUrl: c.portraitUrl,
+          mostrarNaMesa: c.mostrarNaMesa,
+        }))}
+      />
 
       <section>
         <h2 className="display mb-3 text-lg text-paper-light">
