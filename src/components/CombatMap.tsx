@@ -271,6 +271,17 @@ export function CombatMap({
     [puxar],
   );
 
+  // Trava a rolagem da página enquanto a ficha rápida está aberta (o conteúdo
+  // do próprio painel continua rolando).
+  useEffect(() => {
+    if (!ficha && !fichaLoading) return;
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = anterior;
+    };
+  }, [ficha, fichaLoading]);
+
   // Delete/Backspace remove o token selecionado (que você controla).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -831,7 +842,8 @@ export function CombatMap({
           onPointerMove={onMove}
           onPointerUp={onUp}
           onPointerLeave={onUp}
-          className={`quadro relative h-[80vh] w-full touch-none overflow-hidden rounded-md ${placing ? "ring-2 ring-stamp-bright" : ""}`}
+          onDoubleClick={(e) => e.preventDefault()}
+          className={`quadro relative h-[80vh] w-full touch-none select-none overflow-hidden rounded-md ${placing ? "ring-2 ring-stamp-bright" : ""}`}
         >
           <div
             className="absolute left-0 top-0 origin-top-left"
@@ -895,7 +907,7 @@ export function CombatMap({
                   className={`absolute select-none ${meu ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                 >
                   <div
-                    className={`token relative h-full w-full overflow-hidden rounded-full ${ehTurno ? "turno-pulse" : ""} ${t.status === "MORTO" ? "opacity-70 grayscale" : ""}`}
+                    className={`token relative h-full w-full overflow-hidden rounded-full ${ehTurno ? "turno-pulse" : ""} ${t.status === "MORTO" ? "brightness-[0.45]" : ""}`}
                     style={{ boxShadow: ringos.join(", ") }}
                   >
                     {t.imageUrl ? (
@@ -916,7 +928,7 @@ export function CombatMap({
                   {/* Ícone de status no canto direito */}
                   {icone && (
                     <span
-                      className="pointer-events-none absolute -right-1 -top-1 flex items-center justify-center rounded-full bg-ink/85 leading-none"
+                      className="pointer-events-none absolute -right-1 -top-1 z-10 flex items-center justify-center rounded-full bg-ink leading-none ring-1 ring-paper-light/40"
                       style={{
                         width: Math.max(16, tsize * 0.34),
                         height: Math.max(16, tsize * 0.34),
