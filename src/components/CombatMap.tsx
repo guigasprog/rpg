@@ -332,43 +332,42 @@ export function CombatMap({
     return () => window.removeEventListener("keydown", onKey);
   }, [isMaster, sel, data, pos, sizes, clip, cell, run]);
 
-  // Arrastar o card do personagem e soltar no mapa.
-  useEffect(() => {
+  // Arrastar um card (personagem/monstro) e soltar no mapa — pointer capture
+  // no próprio card garante que o "puxar" funcione até soltar.
+  function iniciarPuxar(item: PlaceItem, e: React.PointerEvent) {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    setPlacing(item);
+    setGhost({ x: e.clientX, y: e.clientY });
+  }
+  function moverPuxar(e: React.PointerEvent) {
+    if (placing) setGhost({ x: e.clientX, y: e.clientY });
+  }
+  function soltarPuxar(e: React.PointerEvent) {
     if (!placing) return;
     const item = placing;
-    function mm(e: PointerEvent) {
-      setGhost({ x: e.clientX, y: e.clientY });
-    }
-    function up(e: PointerEvent) {
-      setPlacing(null);
-      setGhost(null);
-      const el = wrapRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      if (
-        e.clientX < rect.left ||
-        e.clientX > rect.right ||
-        e.clientY < rect.top ||
-        e.clientY > rect.bottom
-      )
-        return; // solto fora do mapa → cancela
-      const wx = (e.clientX - rect.left - view.tx) / view.scale - cell / 2;
-      const wy = (e.clientY - rect.top - view.ty) / view.scale - cell / 2;
-      const sx = Math.round(wx / cell) * cell;
-      const sy = Math.round(wy / cell) * cell;
-      void run(() =>
-        item.kind === "lore"
-          ? addMapTokenFromLore(item.id, sx, sy)
-          : addMyToken(item.id, sx, sy),
-      );
-    }
-    window.addEventListener("pointermove", mm);
-    window.addEventListener("pointerup", up);
-    return () => {
-      window.removeEventListener("pointermove", mm);
-      window.removeEventListener("pointerup", up);
-    };
-  }, [placing, view, cell, run]);
+    setPlacing(null);
+    setGhost(null);
+    const el = wrapRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom
+    )
+      return; // soltou fora do mapa → cancela
+    const wx = (e.clientX - rect.left - view.tx) / view.scale - cell / 2;
+    const wy = (e.clientY - rect.top - view.ty) / view.scale - cell / 2;
+    const sx = Math.round(wx / cell) * cell;
+    const sy = Math.round(wy / cell) * cell;
+    void run(() =>
+      item.kind === "lore"
+        ? addMapTokenFromLore(item.id, sx, sy)
+        : addMyToken(item.id, sx, sy),
+    );
+  }
 
   function worldDelta(dx: number, dy: number) {
     return { dx: dx / view.scale, dy: dy / view.scale };
@@ -524,17 +523,20 @@ export function CombatMap({
                 return (
                   <div
                     key={c.id}
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      setPlacing({
-                        kind: "char",
-                        id: c.id,
-                        name: c.name,
-                        portraitUrl: c.portraitUrl,
-                      });
-                      setGhost({ x: e.clientX, y: e.clientY });
-                    }}
-                    className="flex touch-none cursor-grab select-none items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5 active:cursor-grabbing"
+                    onPointerDown={(e) =>
+                      iniciarPuxar(
+                        {
+                          kind: "char",
+                          id: c.id,
+                          name: c.name,
+                          portraitUrl: c.portraitUrl,
+                        },
+                        e,
+                      )
+                    }
+                    onPointerMove={moverPuxar}
+                    onPointerUp={soltarPuxar}
+                    className={`flex touch-none cursor-grab select-none items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5 active:cursor-grabbing ${placing?.kind === "char" && placing.id === c.id ? "opacity-40" : ""}`}
                   >
                     <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-black/15">
                       {c.portraitUrl ? (
@@ -725,17 +727,20 @@ export function CombatMap({
                   {lore.map((l) => (
                     <div
                       key={l.id}
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        setPlacing({
-                          kind: "lore",
-                          id: l.id,
-                          name: l.titulo,
-                          portraitUrl: l.imagemUrl,
-                        });
-                        setGhost({ x: e.clientX, y: e.clientY });
-                      }}
-                      className="flex touch-none cursor-grab select-none items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5 active:cursor-grabbing"
+                      onPointerDown={(e) =>
+                        iniciarPuxar(
+                          {
+                            kind: "lore",
+                            id: l.id,
+                            name: l.titulo,
+                            portraitUrl: l.imagemUrl,
+                          },
+                          e,
+                        )
+                      }
+                      onPointerMove={moverPuxar}
+                      onPointerUp={soltarPuxar}
+                      className={`flex touch-none cursor-grab select-none items-center gap-2 rounded border border-sepia/25 bg-black/[0.03] p-1.5 active:cursor-grabbing ${placing?.kind === "lore" && placing.id === l.id ? "opacity-40" : ""}`}
                     >
                       <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-black/15">
                         {l.imagemUrl ? (
@@ -826,7 +831,7 @@ export function CombatMap({
           onPointerMove={onMove}
           onPointerUp={onUp}
           onPointerLeave={onUp}
-          className="quadro relative h-[80vh] w-full touch-none overflow-hidden rounded-md"
+          className={`quadro relative h-[80vh] w-full touch-none overflow-hidden rounded-md ${placing ? "ring-2 ring-stamp-bright" : ""}`}
         >
           <div
             className="absolute left-0 top-0 origin-top-left"
