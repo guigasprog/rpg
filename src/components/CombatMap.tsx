@@ -1349,7 +1349,7 @@ export function CombatMap({
                   })}
                 </div>
 
-                <div className="space-y-3 rounded-md bg-black/20 p-3">
+                <div className="paper paper-edge space-y-3 rounded-md p-3">
                   <ResourceMeter
                     kind="pv"
                     current={ficha.pvAtual}
@@ -1361,7 +1361,7 @@ export function CombatMap({
                     max={ficha.sanMax}
                   />
                   {podeEditar && (
-                    <div className="space-y-2 border-t border-sepia/25 pt-2">
+                    <div className="space-y-2 border-t border-sepia/30 pt-3">
                       <div className="flex items-center gap-2">
                         <span className="label">Quantidade</span>
                         <input
@@ -1374,39 +1374,49 @@ export function CombatMap({
                           }
                         />
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        <button
-                          type="button"
-                          className="btn btn-dark tap text-xs"
-                          onClick={() => ajustar(-qtd, 0)}
-                          title="Dano"
-                        >
-                          − PV
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-dark tap text-xs"
-                          onClick={() => ajustar(qtd, 0)}
-                          title="Cura"
-                        >
-                          ＋ PV
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-dark tap text-xs"
-                          onClick={() => ajustar(0, -qtd)}
-                          title="Perda de Sanidade"
-                        >
-                          − SAN
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-dark tap text-xs"
-                          onClick={() => ajustar(0, qtd)}
-                          title="Recuperar Sanidade"
-                        >
-                          ＋ SAN
-                        </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="btn btn-dark tap flex-1 px-0 py-1 text-sm"
+                            onClick={() => ajustar(-qtd, 0)}
+                            title="Dano"
+                          >
+                            −
+                          </button>
+                          <span className="label w-8 text-center text-sepia-ink">
+                            PV
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-primary tap flex-1 px-0 py-1 text-sm"
+                            onClick={() => ajustar(qtd, 0)}
+                            title="Cura"
+                          >
+                            ＋
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="btn btn-dark tap flex-1 px-0 py-1 text-sm"
+                            onClick={() => ajustar(0, -qtd)}
+                            title="Perda de Sanidade"
+                          >
+                            −
+                          </button>
+                          <span className="label w-10 text-center text-sepia-ink">
+                            SAN
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-primary tap flex-1 px-0 py-1 text-sm"
+                            onClick={() => ajustar(0, qtd)}
+                            title="Recuperar Sanidade"
+                          >
+                            ＋
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
