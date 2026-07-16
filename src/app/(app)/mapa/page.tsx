@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireViewer } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import { CombatMap } from "@/components/CombatMap";
+import { parseStringArray } from "@/lib/character";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +28,27 @@ export default async function MapaPage() {
   ]);
 
   const initial = {
-    map: map ?? {
-      id: "main",
-      backgroundUrl: null,
-      cols: 20,
-      rows: 14,
-      cell: 64,
-      showGrid: true,
-    },
+    map: map
+      ? {
+          id: map.id,
+          backgroundUrl: map.backgroundUrl,
+          cols: map.cols,
+          rows: map.rows,
+          cell: map.cell,
+          showGrid: map.showGrid,
+          fog: map.fog,
+          revelado: parseStringArray(map.revelado),
+        }
+      : {
+          id: "main",
+          backgroundUrl: null,
+          cols: 20,
+          rows: 14,
+          cell: 64,
+          showGrid: true,
+          fog: false,
+          revelado: [] as string[],
+        },
     tokens,
     turno: turnoEntry?.nome ?? null,
     viewerId: viewer.id,

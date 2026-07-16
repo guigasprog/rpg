@@ -111,6 +111,8 @@ model GameMap {
   rows          Int      @default(14) // nº de quadros na vertical (Y)
   cell          Int      @default(64) // tamanho de cada quadro (px)
   showGrid      Boolean  @default(true)
+  fog           Boolean  @default(false) // névoa de guerra ativa
+  revelado      String   @default("[]") // JSON: chaves "col,row" reveladas
   // (legado, sem uso: a área agora é derivada de cols×rows×cell)
   bgX           Int      @default(0)
   bgY           Int      @default(0)

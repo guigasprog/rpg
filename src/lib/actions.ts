@@ -1240,6 +1240,40 @@ export async function updateMapSettings(input: {
   return { ok: true };
 }
 
+export async function setMapFog(ativo: boolean): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.gameMap.upsert({
+    where: { id: MAP_ID },
+    update: { fog: ativo },
+    create: { id: MAP_ID, fog: ativo },
+  });
+  revalidateMapa();
+  return { ok: true };
+}
+
+// Substitui o conjunto de células reveladas (chaves "col,row").
+export async function setRevelado(keys: string[]): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const limpas = Array.from(
+    new Set((Array.isArray(keys) ? keys : []).filter((k) => /^\d+,\d+$/.test(k))),
+  ).slice(0, 5000);
+  await prisma.gameMap.upsert({
+    where: { id: MAP_ID },
+    update: { revelado: JSON.stringify(limpas) },
+    create: { id: MAP_ID, revelado: JSON.stringify(limpas) },
+  });
+  revalidateMapa();
+  return { ok: true };
+}
+
 // Jogador/Mestre coloca (ou reposiciona) o token de um personagem no mapa.
 // x/y opcionais: quando o token é solto arrastando, vêm já ajustados à grade.
 export async function addMyToken(

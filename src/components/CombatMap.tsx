@@ -11,6 +11,8 @@ import {
   moveMapToken,
   removeMapToken,
   resizeMapToken,
+  setMapFog,
+  setRevelado,
   setTokenLado,
   setTokenStatus,
   updateMapSettings,
@@ -74,6 +76,8 @@ interface MapCfg {
   rows: number;
   cell: number;
   showGrid: boolean;
+  fog: boolean;
+  revelado: string[];
 }
 interface Token {
   id: string;
@@ -169,6 +173,16 @@ export function CombatMap({
   const [asideOpen, setAsideOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
   const [stage, setStage] = useState<StageData | null>(null);
+  const [modo, setModo] = useState<"normal" | "nevoa" | "medir">("normal");
+  const [revelado, setReveladoLocal] = useState<Set<string>>(
+    () => new Set(initial.map.revelado),
+  );
+  const [medida, setMedida] = useState<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  } | null>(null);
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [qtd, setQtd] = useState(1);
@@ -207,7 +221,7 @@ export function CombatMap({
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
-    kind: "pan" | "token" | "resize" | "marquee";
+    kind: "pan" | "token" | "resize" | "marquee" | "nevoa" | "medir";
     id?: string;
     canMove?: boolean;
     startX: number;
@@ -249,6 +263,10 @@ export function CombatMap({
         });
         return m;
       });
+      // Sincroniza névoa (a menos que o Mestre esteja pintando agora).
+      if (dragRef.current?.kind !== "nevoa") {
+        setReveladoLocal(new Set(d.map.revelado));
+      }
     } catch {
       /* ignora */
     }
@@ -436,6 +454,8 @@ export function CombatMap({
   function onDownToken(e: React.PointerEvent, t: Token) {
     // Botão direito sobre o token → não intercepta; deixa o fundo panear.
     if (e.button === 2 || e.button === 1) return;
+    // Em modos de névoa/régua, o token não intercepta (o fundo cuida).
+    if (modo !== "normal") return;
     e.stopPropagation();
     // Ctrl+Shift+clique: põe o token na ordem de combate (Mestre).
     if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
@@ -475,9 +495,29 @@ export function CombatMap({
     };
   }
 
+  function pontoMundo(e: { clientX: number; clientY: number }) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: (e.clientX - rect.left - view.tx) / view.scale,
+      y: (e.clientY - rect.top - view.ty) / view.scale,
+    };
+  }
+
+  function pintarCelula(e: { clientX: number; clientY: number }) {
+    const w = pontoMundo(e);
+    const col = Math.floor(w.x / cell);
+    const row = Math.floor(w.y / cell);
+    if (col < 0 || row < 0 || col >= data.map.cols || row >= data.map.rows) return;
+    setReveladoLocal((prev) => {
+      const n = new Set(prev);
+      n.add(`${col},${row}`);
+      return n;
+    });
+  }
+
   function onDownBg(e: React.PointerEvent) {
-    // Botão direito (ou toque) → arrasta o tabuleiro. Esquerdo (mouse) → caixa
-    // de seleção múltipla.
+    // Botão direito/meio/toque → arrasta o tabuleiro (em qualquer modo).
     const panear = e.button === 2 || e.button === 1 || e.pointerType === "touch";
     if (panear) {
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -490,6 +530,22 @@ export function CombatMap({
       };
       return;
     }
+    // Régua: mede distância em quadros.
+    if (modo === "medir") {
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      const w = pontoMundo(e);
+      dragRef.current = { kind: "medir", startX: e.clientX, startY: e.clientY, ox: 0, oy: 0 };
+      setMedida({ x0: w.x, y0: w.y, x1: w.x, y1: w.y });
+      return;
+    }
+    // Névoa (Mestre): pinta células reveladas.
+    if (modo === "nevoa" && isMaster) {
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      dragRef.current = { kind: "nevoa", startX: e.clientX, startY: e.clientY, ox: 0, oy: 0 };
+      pintarCelula(e);
+      return;
+    }
+    // Normal: caixa de seleção múltipla.
     if (!e.shiftKey) setSelIds(new Set());
     dragRef.current = {
       kind: "marquee",
@@ -529,6 +585,11 @@ export function CombatMap({
       setMarquee((mq) =>
         mq ? { ...mq, x1: e.clientX, y1: e.clientY } : mq,
       );
+    } else if (d.kind === "medir") {
+      const w = pontoMundo(e);
+      setMedida((m) => (m ? { ...m, x1: w.x, y1: w.y } : m));
+    } else if (d.kind === "nevoa") {
+      pintarCelula(e);
     } else if (d.kind === "token" && d.id && d.canMove) {
       if (Math.abs(e.clientX - d.startX) > 2 || Math.abs(e.clientY - d.startY) > 2)
         d.moved = true;
@@ -558,6 +619,16 @@ export function CombatMap({
   function onUp() {
     const d = dragRef.current;
     dragRef.current = null;
+    if (d?.kind === "nevoa") {
+      setReveladoLocal((atual) => {
+        void run(() => setRevelado([...atual]));
+        return atual;
+      });
+      return;
+    }
+    if (d?.kind === "medir") {
+      return; // mantém a medida na tela até a próxima
+    }
     if (d?.kind === "marquee") {
       const mq = marquee;
       setMarquee(null);
@@ -965,7 +1036,8 @@ export function CombatMap({
             ? "Ctrl+Shift+clique põe na iniciativa; Ctrl+C / Ctrl+V copia e cola. "
             : ""}
           A câmera foca quem está no turno. A roda do mouse dá zoom só sobre o
-          mapa.
+          mapa. Barra de modos (canto sup. esq.): 📏 régua mede em quadros
+          {isMaster ? "; 🌫️ pinta a névoa e o botão liga/desliga a névoa de guerra" : ""}.
         </p>
         {erro && <p className="typewriter text-xs text-stamp">{erro}</p>}
       </aside>
@@ -997,6 +1069,76 @@ export function CombatMap({
           >
             Centralizar
           </button>
+        </div>
+
+        {/* Modos: seleção / névoa (GM) / régua */}
+        <div className="absolute left-2 top-2 z-10 flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setModo("normal")}
+            className={`btn tap text-xs ${modo === "normal" ? "btn-primary" : "btn-dark"}`}
+          >
+            ✋
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setModo("medir");
+              setMedida(null);
+            }}
+            className={`btn tap text-xs ${modo === "medir" ? "btn-primary" : "btn-dark"}`}
+            title="Régua: medir distância em quadros"
+          >
+            📏
+          </button>
+          {isMaster && (
+            <>
+              <button
+                type="button"
+                onClick={() => setModo("nevoa")}
+                className={`btn tap text-xs ${modo === "nevoa" ? "btn-primary" : "btn-dark"}`}
+                title="Névoa: pinte as células reveladas"
+              >
+                🌫️
+              </button>
+              <button
+                type="button"
+                onClick={() => run(() => setMapFog(!data.map.fog))}
+                className={`btn tap text-xs ${data.map.fog ? "btn-primary" : "btn-dark"}`}
+                title="Ligar/desligar névoa de guerra"
+              >
+                {data.map.fog ? "névoa ✓" : "névoa"}
+              </button>
+              {data.map.fog && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const todas: string[] = [];
+                      for (let c = 0; c < data.map.cols; c++)
+                        for (let r = 0; r < data.map.rows; r++)
+                          todas.push(`${c},${r}`);
+                      setReveladoLocal(new Set(todas));
+                      run(() => setRevelado(todas));
+                    }}
+                    className="btn btn-ghost tap text-xs"
+                  >
+                    revelar tudo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReveladoLocal(new Set());
+                      run(() => setRevelado([]));
+                    }}
+                    className="btn btn-ghost tap text-xs"
+                  >
+                    ocultar tudo
+                  </button>
+                </>
+              )}
+            </>
+          )}
         </div>
 
         <div
@@ -1046,10 +1188,49 @@ export function CombatMap({
               />
             )}
 
+            {/* Régua (medida em quadros) */}
+            {medida && (
+              <svg
+                className="pointer-events-none absolute left-0 top-0 overflow-visible"
+                width={1}
+                height={1}
+              >
+                <line
+                  x1={medida.x0}
+                  y1={medida.y0}
+                  x2={medida.x1}
+                  y2={medida.y1}
+                  stroke="rgba(224,192,96,0.95)"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                />
+                <text
+                  x={(medida.x0 + medida.x1) / 2}
+                  y={(medida.y0 + medida.y1) / 2 - 6}
+                  textAnchor="middle"
+                  className="fill-paper-light"
+                  style={{ fontSize: 14, paintOrder: "stroke" }}
+                  stroke="rgba(10,9,8,0.9)"
+                  strokeWidth={4}
+                >
+                  {Math.max(
+                    Math.abs(Math.round((medida.x1 - medida.x0) / cell)),
+                    Math.abs(Math.round((medida.y1 - medida.y0) / cell)),
+                  )}{" "}
+                  quadros
+                </text>
+              </svg>
+            )}
+
             {/* Tokens */}
             {data.tokens.map((t) => {
               const p = pos[t.id] ?? { x: t.x, y: t.y };
               const meu = isMaster || t.ownerId === data.viewerId;
+              // Esconde tokens sob a névoa para jogadores.
+              if (data.map.fog && !isMaster) {
+                const tc = `${Math.floor((p.x + (sizes[t.id] ?? cell) / 2) / cell)},${Math.floor((p.y + (sizes[t.id] ?? cell) / 2) / cell)}`;
+                if (!revelado.has(tc)) return null;
+              }
               const ehTurno =
                 !!data.turno &&
                 t.nome.trim() !== "" &&
@@ -1204,6 +1385,35 @@ export function CombatMap({
                 </div>
               );
             })}
+
+            {/* Névoa de guerra: cobre células não reveladas. */}
+            {data.map.fog && (
+              <div
+                className="pointer-events-none absolute left-0 top-0"
+                style={{ width: areaW, height: areaH }}
+              >
+                {Array.from({ length: data.map.cols * data.map.rows }).map(
+                  (_, idx) => {
+                    const c = idx % data.map.cols;
+                    const r = Math.floor(idx / data.map.cols);
+                    if (revelado.has(`${c},${r}`)) return null;
+                    return (
+                      <div
+                        key={idx}
+                        className="absolute"
+                        style={{
+                          left: c * cell,
+                          top: r * cell,
+                          width: cell + 1,
+                          height: cell + 1,
+                          background: isMaster ? "rgba(6,5,4,0.55)" : "#050403",
+                        }}
+                      />
+                    );
+                  },
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
