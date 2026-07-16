@@ -292,6 +292,32 @@ export function getCondition(key: string): ConditionInfo | undefined {
   return CONDITIONS.find((c) => c.key === key);
 }
 
+// Traumas permanentes — sorteados ao colapsar de Sanidade (chegar a 0/negativo).
+export interface TraumaInfo {
+  key: string;
+  label: string;
+  desc: string;
+}
+
+export const TRAUMAS: TraumaInfo[] = [
+  { key: "paranoia", label: "Paranoia", desc: "Ninguém é de confiança. Enxerga conspirações em tudo." },
+  { key: "fobia", label: "Fobia", desc: "Um terror irracional específico o paralisa (o Mestre define)." },
+  { key: "amnesia", label: "Lapsos", desc: "Perde pedaços de tempo. Acorda em lugares sem saber como chegou." },
+  { key: "tique", label: "Tique Nervoso", desc: "Um gesto ou repetição involuntária denuncia seu abalo." },
+  { key: "insonia", label: "Insônia", desc: "O sono não vem — e quando vem, traz coisas piores." },
+  { key: "compulsao", label: "Compulsão", desc: "Um ritual obsessivo (contar, lavar as mãos, rezar) o acalma." },
+  { key: "mutismo", label: "Mutismo Seletivo", desc: "Em momentos de estresse, a voz simplesmente some." },
+  { key: "vozes", label: "As Vozes", desc: "Escuta sussurros que os outros não ouvem. Às vezes têm razão." },
+  { key: "dissociacao", label: "Dissociação", desc: "Vê a si mesmo de fora, como se a vida fosse um filme antigo." },
+  { key: "hipervigilancia", label: "Hipervigilância", desc: "Nunca relaxa; qualquer ruído é uma ameaça iminente." },
+  { key: "culpa", label: "Culpa Corrosiva", desc: "Carrega a certeza de que a próxima morte será por sua causa." },
+  { key: "marca", label: "A Marca", desc: "Algo do Irreal ficou. Um sinal na pele que arde perto do véu." },
+];
+
+export function getTrauma(key: string): TraumaInfo | undefined {
+  return TRAUMAS.find((t) => t.key === key);
+}
+
 // ---------------- Dados de dano ----------------
 
 // "" = item sem dano (não é arma).

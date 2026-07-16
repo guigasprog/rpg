@@ -7,6 +7,7 @@ import {
   chooseSubclass,
   respondOccultOffer,
   setRetratoTravado,
+  sofrerTrauma,
   updateCharacterAsPlayer,
   usarItemNoAliado,
   usarItemRapido,
@@ -30,7 +31,7 @@ import {
   unlockedMilestones,
 } from "@/lib/game";
 import { ResourceMeter } from "@/components/ResourceMeter";
-import { ConditionBadges } from "@/components/Conditions";
+import { ConditionBadges, TraumaBadges } from "@/components/Conditions";
 import { DiceRoller } from "@/components/DiceRoller";
 import { WeaponRoller } from "@/components/WeaponRoller";
 import {
@@ -64,6 +65,16 @@ export function CharacterSheet({ character, party = [] }: Props) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [stage, setStage] = useState<StageData | null>(null);
+  const [colapsando, startColapso] = useTransition();
+
+  function colapsar() {
+    startColapso(async () => {
+      const r = await sofrerTrauma(character.id);
+      if (r.ok && r.trauma) setMsg(`Trauma sofrido: ${r.trauma.label}.`);
+      else if (!r.ok) setMsg(r.error ?? "Falha.");
+      router.refresh();
+    });
+  }
 
   // Modo edição: por padrão a ficha é só leitura; o jogador liga para editar.
   const [editando, setEditando] = useState(false);
@@ -278,6 +289,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
         )}
         <span className="badge badge-nivel">{levelLabel(character.nivel)}</span>
         <ConditionBadges condicoes={character.condicoes} />
+        <TraumaBadges traumas={character.traumas} />
         {milestones.length > 0 && (
           <span className="typewriter text-xs text-paper/60">
             {milestones.length} habilidade(s) de marco
@@ -308,6 +320,23 @@ export function CharacterSheet({ character, party = [] }: Props) {
 
       {showProposta && <PropostaPrompt character={character} />}
       {showSubclass && <SubclassPrompt character={character} />}
+
+      {canEdit && character.sanAtual <= 0 && (
+        <div className="glitch mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-stamp/60 bg-ink-soft p-3">
+          <p className="typewriter text-sm text-paper">
+            <strong className="text-stamp-bright">Colapso mental.</strong> A
+            Sanidade se esgotou — a mente cobra o preço.
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary tap text-xs"
+            onClick={colapsar}
+            disabled={colapsando}
+          >
+            {colapsando ? "…" : "Sofrer um trauma"}
+          </button>
+        </div>
+      )}
 
       {/* Abas do fichário (roláveis no mobile) */}
       <div className="flex flex-nowrap items-end gap-1 overflow-x-auto sm:flex-wrap">

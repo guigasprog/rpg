@@ -23,7 +23,7 @@ import {
   subclassLabel,
 } from "@/lib/game";
 import { ResourceMeter } from "@/components/ResourceMeter";
-import { ConditionBadges } from "@/components/Conditions";
+import { ConditionBadges, TraumaBadges } from "@/components/Conditions";
 import { DiceRoller } from "@/components/DiceRoller";
 import { WeaponRoller } from "@/components/WeaponRoller";
 import { ChatBox } from "@/components/ChatBox";
@@ -45,6 +45,7 @@ interface FichaRapida {
   attrLabia: number;
   attrMente: number;
   especialistaFocos: string[];
+  traumas: string[];
   pvAtual: number;
   pvMax: number;
   sanAtual: number;
@@ -1336,8 +1337,11 @@ export function CombatMap({
                   </button>
                 </div>
 
-                {ficha.condicoes.length > 0 && (
-                  <ConditionBadges condicoes={ficha.condicoes} />
+                {(ficha.condicoes.length > 0 || ficha.traumas.length > 0) && (
+                  <div className="flex flex-wrap gap-1">
+                    <ConditionBadges condicoes={ficha.condicoes} />
+                    <TraumaBadges traumas={ficha.traumas} />
+                  </div>
                 )}
 
                 <div className="grid grid-cols-4 gap-2">

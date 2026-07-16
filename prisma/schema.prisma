@@ -218,6 +218,8 @@ model Character {
 
   // Condições/estados (Ferido, Sangrando, Em Pânico...). JSON: string[] de chaves.
   condicoes String @default("[]")
+  // Traumas permanentes (sofridos ao colapsar de Sanidade). JSON: string[].
+  traumas   String @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

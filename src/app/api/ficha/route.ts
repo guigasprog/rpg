@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     sanAtual: ch.sanAtual,
     sanMax: computeMaxSan(ch.attrMente, ch.classe, ch.nivel, ch.subclasse),
     condicoes: parseStringArray(ch.condicoes),
+    traumas: parseStringArray(ch.traumas),
     inventory: parseInventory(ch.inventory),
   });
 }

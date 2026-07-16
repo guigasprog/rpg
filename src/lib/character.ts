@@ -61,6 +61,7 @@ export interface CharacterDTO {
   propostaTexto: string | null;
 
   condicoes: string[];
+  traumas: string[];
 
   // Presentes SOMENTE quando o viewer tem direito.
   masterNotes?: string | null;
@@ -217,6 +218,7 @@ export function toCharacterDTO(character: Character, viewer: Viewer): CharacterD
     propostaTexto: character.propostaTexto,
 
     condicoes: parseStringArray(character.condicoes),
+    traumas: parseStringArray(character.traumas),
 
     canEditAsPlayer: isOwner || isMaster,
     canEditAsMaster: isMaster,

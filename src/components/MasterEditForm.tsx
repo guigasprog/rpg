@@ -29,7 +29,12 @@ import {
 } from "@/lib/game";
 import { OccultismToggle } from "@/components/OccultismToggle";
 import { ResourceMeter } from "@/components/ResourceMeter";
-import { ConditionBadges, ConditionsManager } from "@/components/Conditions";
+import {
+  ConditionBadges,
+  ConditionsManager,
+  TraumaBadges,
+  TraumaManager,
+} from "@/components/Conditions";
 
 function fmtSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -359,6 +364,10 @@ export function MasterEditForm({ character }: Props) {
           characterId={character.id}
           condicoes={character.condicoes}
         />
+        <div className="mt-3 border-t border-sepia/25 pt-3">
+          <p className="label mb-1">Traumas permanentes</p>
+          <TraumaManager characterId={character.id} traumas={character.traumas} />
+        </div>
       </section>
 
       {/* Inventário + notas */}
@@ -604,6 +613,7 @@ function DossierView({
                 <span className="badge badge-ocultista">proposta pendente</span>
               )}
               <ConditionBadges condicoes={character.condicoes} />
+              <TraumaBadges traumas={character.traumas} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

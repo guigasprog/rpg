@@ -2,8 +2,35 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CONDITIONS, getCondition } from "@/lib/game";
-import { aplicarCondicoesTick, setCharacterCondicoes } from "@/lib/actions";
+import { CONDITIONS, getCondition, getTrauma } from "@/lib/game";
+import {
+  aplicarCondicoesTick,
+  removerTrauma,
+  setCharacterCondicoes,
+  sofrerTrauma,
+} from "@/lib/actions";
+
+export function TraumaBadges({ traumas }: { traumas: string[] }) {
+  if (!traumas || traumas.length === 0) return null;
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      {traumas.map((k) => {
+        const t = getTrauma(k);
+        if (!t) return null;
+        return (
+          <span
+            key={k}
+            title={t.desc}
+            className="badge badge-ocultista"
+            style={{ opacity: 0.95 }}
+          >
+            🕳️ {t.label}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 export function ConditionBadges({ condicoes }: { condicoes: string[] }) {
   if (!condicoes || condicoes.length === 0) return null;
@@ -24,6 +51,67 @@ export function ConditionBadges({ condicoes }: { condicoes: string[] }) {
         );
       })}
     </span>
+  );
+}
+
+export function TraumaManager({
+  characterId,
+  traumas,
+}: {
+  characterId: string;
+  traumas: string[];
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  function run(fn: () => Promise<{ ok: boolean }>) {
+    start(async () => {
+      await fn();
+      router.refresh();
+    });
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {traumas.length === 0 && (
+          <span className="typewriter text-xs text-sepia-dark">
+            Nenhum trauma.
+          </span>
+        )}
+        {traumas.map((k) => {
+          const t = getTrauma(k);
+          if (!t) return null;
+          return (
+            <span
+              key={k}
+              title={t.desc}
+              className="inline-flex items-center gap-1 rounded-full bg-stamp/15 px-2 py-0.5 text-xs text-sepia-ink ring-1 ring-stamp/40"
+            >
+              🕳️ {t.label}
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => run(() => removerTrauma(characterId, k))}
+                className="text-stamp"
+                aria-label={`Remover ${t.label}`}
+              >
+                ✕
+              </button>
+            </span>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => run(() => sofrerTrauma(characterId))}
+        className="btn btn-dark tap mt-2 text-xs"
+        title="Sorteia um trauma permanente"
+      >
+        🕳️ Sofrer trauma
+      </button>
+    </div>
   );
 }
 

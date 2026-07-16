@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { getViewer, requireMaster } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import {
+  TRAUMAS,
   computeMaxPv,
   computeMaxSan,
   getCondition,
@@ -1022,6 +1023,67 @@ export async function setCharacterCondicoes(
   });
   revalidateCharacter(id);
   revalidatePath("/mestre");
+  return { ok: true, id };
+}
+
+// Sofre um trauma permanente (sorteado). Mestre ou dono. Devolve o trauma.
+export interface TraumaResult extends ActionResult {
+  trauma?: { key: string; label: string; desc: string };
+}
+
+export async function sofrerTrauma(id: string): Promise<TraumaResult> {
+  const session = await auth();
+  if (!session?.user) return fail("Não autenticado.");
+  const isMaster = session.user.role === ROLES.MASTER;
+  const ch = await prisma.character.findUnique({ where: { id } });
+  if (!ch) return fail("Personagem não encontrado.");
+  if (!isMaster && ch.ownerId !== session.user.id)
+    return fail("Só o seu próprio personagem.");
+  const atuais = parseStringArray(ch.traumas);
+  const disponiveis = TRAUMAS.filter((t) => !atuais.includes(t.key));
+  const pool = disponiveis.length > 0 ? disponiveis : TRAUMAS;
+  const sorteado = pool[Math.floor(Math.random() * pool.length)];
+  const novos = [...atuais, sorteado.key];
+  await prisma.character.update({
+    where: { id },
+    data: { traumas: JSON.stringify(novos) },
+  });
+  // Registra no chat (dramatiza o colapso).
+  await prisma.message.create({
+    data: {
+      autorNome: session.user.name ?? "?",
+      autorRole: session.user.role ?? ROLES.PLAYER,
+      autorId: session.user.id ?? null,
+      tipo: "ROLL",
+      texto: `🕳️ Colapso — novo trauma: ${sorteado.label}`,
+      personagem: ch.name,
+    },
+  });
+  revalidateCharacter(id);
+  revalidateMapa();
+  return {
+    ok: true,
+    id,
+    trauma: { key: sorteado.key, label: sorteado.label, desc: sorteado.desc },
+  };
+}
+
+export async function removerTrauma(
+  id: string,
+  key: string,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const ch = await prisma.character.findUnique({ where: { id } });
+  if (!ch) return fail("Personagem não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && ch.ownerId !== viewer.id) return fail("Sem permissão.");
+  const novos = parseStringArray(ch.traumas).filter((k) => k !== key);
+  await prisma.character.update({
+    where: { id },
+    data: { traumas: JSON.stringify(novos) },
+  });
+  revalidateCharacter(id);
   return { ok: true, id };
 }
 
