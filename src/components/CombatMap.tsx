@@ -27,6 +27,7 @@ import { ConditionBadges } from "@/components/Conditions";
 import { DiceRoller } from "@/components/DiceRoller";
 import { WeaponRoller } from "@/components/WeaponRoller";
 import { ChatBox } from "@/components/ChatBox";
+import { DiceStage, type StageData } from "@/components/DiceStage";
 
 function fmtSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -56,6 +57,12 @@ interface FichaRapida {
     usos: number;
     efeitoPv: number;
     efeitoSan: number;
+    dadoEfeito?: string;
+    baseEfeito?: number;
+    recurso?: string;
+    especialista?: string;
+    bonusEspecialista?: number;
+    usosSemEspecialista?: number;
   }[];
 }
 
@@ -160,6 +167,7 @@ export function CombatMap({
   const [statusOpen, setStatusOpen] = useState(false);
   const [asideOpen, setAsideOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
+  const [stage, setStage] = useState<StageData | null>(null);
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [qtd, setQtd] = useState(1);
@@ -1275,6 +1283,9 @@ export function CombatMap({
         </div>
       )}
 
+      {/* Animação de rolagem (uso de item) */}
+      <DiceStage data={stage} onClose={() => setStage(null)} />
+
       {/* Ficha rápida (duplo-clique no token) */}
       {(ficha || fichaLoading) && (
         <div
@@ -1473,6 +1484,18 @@ export function CombatMap({
                                       : ""}
                                   </span>
                                 )}
+                                {it.dadoEfeito && (
+                                  <span className="ml-2 text-[0.65rem] text-emerald-800">
+                                    {it.dadoEfeito}
+                                    {it.baseEfeito
+                                      ? `${it.baseEfeito >= 0 ? "+" : ""}${it.baseEfeito}`
+                                      : ""}{" "}
+                                    {it.recurso}
+                                    {it.especialista
+                                      ? ` · esp: ${subclassLabel(it.especialista)}`
+                                      : ""}
+                                  </span>
+                                )}
                                 <span className="ml-2 text-[0.6rem] text-sepia-dark">
                                   usos: {it.usos}
                                 </span>
@@ -1482,21 +1505,28 @@ export function CombatMap({
                                   <button
                                     type="button"
                                     className="btn btn-primary tap px-2 py-1 text-xs"
-                                    onClick={() =>
-                                      run(async () => {
-                                        const r = await usarItemRapido(
-                                          ficha.id,
-                                          i,
-                                        );
-                                        void abrirFicha(ficha.id);
-                                        return r;
-                                      })
-                                    }
-                                    title={
-                                      temEfeito
-                                        ? "Usar: aplica efeito e gasta 1 uso"
-                                        : "Usar (−1 uso)"
-                                    }
+                                    onClick={async () => {
+                                      setErro(null);
+                                      const r = await usarItemRapido(ficha.id, i);
+                                      if (!r.ok) {
+                                        setErro(r.error ?? "Falha.");
+                                        return;
+                                      }
+                                      const ef = r.efeito;
+                                      if (ef && (ef.dPv || ef.dSan)) {
+                                        const val = ef.dPv || ef.dSan;
+                                        setStage({
+                                          dados: ef.rolls.length ? ef.rolls : [val],
+                                          total: val,
+                                          label: `${r.nome} · ${ef.recurso}`,
+                                          resultado: `${val >= 0 ? "+" : ""}${val} ${ef.recurso}`,
+                                          tom: ef.especialista === false ? "parcial" : "ok",
+                                        });
+                                      }
+                                      void abrirFicha(ficha.id);
+                                      puxar();
+                                    }}
+                                    title="Usar item (rola o efeito e gasta usos)"
                                   >
                                     Usar
                                   </button>

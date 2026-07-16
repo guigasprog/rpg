@@ -38,6 +38,12 @@ const inventoryItem = z.object({
   usos: z.coerce.number().int().min(0).max(999).default(1),
   efeitoPv: z.coerce.number().int().min(-99).max(99).default(0),
   efeitoSan: z.coerce.number().int().min(-99).max(99).default(0),
+  dadoEfeito: dieCode.optional().default(""),
+  baseEfeito: z.coerce.number().int().min(-99).max(99).default(0),
+  recurso: z.enum(["PV", "SAN"]).optional().default("PV"),
+  especialista: z.string().trim().max(40).optional().default(""),
+  bonusEspecialista: z.coerce.number().int().min(-99).max(99).default(0),
+  usosSemEspecialista: z.coerce.number().int().min(1).max(99).default(5),
 });
 
 export const inventoryArray = z.array(inventoryItem).max(100);

@@ -43,6 +43,13 @@ function rollDie(qtd: number, faces: number): number[] {
   return out;
 }
 
+// Rola um código de dado (ex.: "1d6", "2d4"); [] se inválido/vazio.
+export function rollPool(code: string): number[] {
+  const parsed = parseDie(code);
+  if (!parsed) return [];
+  return rollDie(parsed.qtd, parsed.faces);
+}
+
 // ---------------- Comando de rolagem no chat ----------------
 // Aceita: 1d6, 2d6+3, 2d6+inv, 1d20, 2d6-1 (atributos: inv/com/lab/men).
 

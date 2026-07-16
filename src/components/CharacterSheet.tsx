@@ -9,7 +9,9 @@ import {
   setRetratoTravado,
   updateCharacterAsPlayer,
   usarItemNoAliado,
+  usarItemRapido,
 } from "@/lib/actions";
+import { DiceStage, type StageData } from "@/components/DiceStage";
 import {
   ATTRIBUTES,
   BASE_PV,
@@ -18,6 +20,7 @@ import {
   OCCULTISM_LEVELS,
   PROPOSTA,
   SUBCLASS_LEVEL,
+  SUBCLASSES,
   WEAPON_DICE,
   classLabel,
   getSubclass,
@@ -60,6 +63,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
   const [tab, setTab] = useState<TabId>("id");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [stage, setStage] = useState<StageData | null>(null);
 
   // Modo edição: por padrão a ficha é só leitura; o jogador liga para editar.
   const [editando, setEditando] = useState(false);
@@ -166,32 +170,36 @@ export function CharacterSheet({ character, party = [] }: Props) {
     invLocal,
   ]);
 
-  // Usar item: aplica o efeito (PV/SAN), gasta 1 uso e SALVA automaticamente.
+  // Usar item: rola o efeito no servidor (com escala por classe), gasta usos e
+  // salva. Mostra a animação central.
   async function usarItem(i: number) {
     const it = inventory[i];
     if (!it || it.usos <= 0 || saving) return;
-    const novoInv = inventory.map((x, j) =>
-      j === i ? { ...x, usos: Math.max(0, x.usos - 1) } : x,
-    );
-    const novoPv = pvAtual + (it.efeitoPv || 0);
-    const novoSan = sanAtual + (it.efeitoSan || 0);
-    // Atualiza a UI na hora.
-    setInventory(novoInv);
-    setPvAtual(novoPv);
-    setSanAtual(novoSan);
-    // Persiste com os valores calculados (evita estado defasado).
     setSaving(true);
     setMsg(null);
-    const res = await updateCharacterAsPlayer(character.id, {
+    // Garante que o servidor tem o inventário atual antes de usar/rolar.
+    await updateCharacterAsPlayer(character.id, {
       ...basePayload(),
-      inventory: novoInv,
-      pvAtual: novoPv,
-      sanAtual: novoSan,
+      inventory,
+      pvAtual,
+      sanAtual,
     });
+    const res = await usarItemRapido(character.id, i);
     setSaving(false);
     if (!res.ok) {
       setMsg(res.error ?? "Falha ao usar o item.");
       return;
+    }
+    const ef = res.efeito;
+    if (ef && (ef.dPv || ef.dSan)) {
+      const val = ef.dPv || ef.dSan;
+      setStage({
+        dados: ef.rolls.length ? ef.rolls : [val],
+        total: val,
+        label: `${it.nome} · ${ef.recurso}`,
+        resultado: `${val >= 0 ? "+" : ""}${val} ${ef.recurso}`,
+        tom: ef.especialista === false ? "parcial" : "ok",
+      });
     }
     setMsg(`${it.nome} usado.`);
     router.refresh();
@@ -253,6 +261,7 @@ export function CharacterSheet({ character, party = [] }: Props) {
 
   return (
     <div className={irreal ? "irreal rounded-md" : ""}>
+      <DiceStage data={stage} onClose={() => setStage(null)} />
       {/* Cabeçalho: classe + nível */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span
@@ -857,12 +866,32 @@ function InventoryTab({
   const [usos, setUsos] = useState(1);
   const [efeitoPv, setEfeitoPv] = useState(0);
   const [efeitoSan, setEfeitoSan] = useState(0);
+  const [avancado, setAvancado] = useState(false);
+  const [dadoEfeito, setDadoEfeito] = useState("");
+  const [baseEfeito, setBaseEfeito] = useState(0);
+  const [recurso, setRecurso] = useState("PV");
+  const [especialista, setEspecialista] = useState("");
+  const [bonusEsp, setBonusEsp] = useState(0);
+  const [usosSemEsp, setUsosSemEsp] = useState(5);
 
   function add() {
     if (!nome.trim()) return;
     setInventory((p) => [
       ...p,
-      { nome: nome.trim(), dano, qtd, usos, efeitoPv, efeitoSan },
+      {
+        nome: nome.trim(),
+        dano,
+        qtd,
+        usos,
+        efeitoPv,
+        efeitoSan,
+        dadoEfeito,
+        baseEfeito,
+        recurso,
+        especialista,
+        bonusEspecialista: bonusEsp,
+        usosSemEspecialista: usosSemEsp,
+      },
     ]);
     setNome("");
     setDano("");
@@ -870,7 +899,16 @@ function InventoryTab({
     setUsos(1);
     setEfeitoPv(0);
     setEfeitoSan(0);
+    setDadoEfeito("");
+    setBaseEfeito(0);
+    setRecurso("PV");
+    setEspecialista("");
+    setBonusEsp(0);
+    setUsosSemEsp(5);
   }
+
+  // Lista achatada de subclasses para o seletor de especialista.
+  const subOpcoes = Object.values(SUBCLASSES).flat();
 
   return (
     <div>
@@ -1061,14 +1099,96 @@ function InventoryTab({
               }
             />
           </div>
+          <button
+            type="button"
+            className={`btn tap ${avancado ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setAvancado((v) => !v)}
+            title="Efeito com rolagem por classe"
+          >
+            🎲 rolado
+          </button>
           <button type="button" className="btn btn-dark tap" onClick={add}>
             + Adicionar
           </button>
         </div>
       )}
+      {editing && avancado && (
+        <div className="mt-2 flex flex-wrap items-end gap-2 rounded border border-sepia/25 bg-black/5 p-2">
+          <div className="w-24">
+            <label className="label">Dado efeito</label>
+            <select
+              className="field mt-1"
+              value={dadoEfeito}
+              onChange={(e) => setDadoEfeito(e.target.value)}
+            >
+              {WEAPON_DICE.map((d) => (
+                <option key={d} value={d}>
+                  {d === "" ? "— nenhum —" : d}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="w-16">
+            <label className="label">Base</label>
+            <input
+              type="number"
+              className="field mt-1"
+              value={baseEfeito}
+              onChange={(e) => setBaseEfeito(Math.trunc(Number(e.target.value) || 0))}
+            />
+          </div>
+          <div className="w-20">
+            <label className="label">Recurso</label>
+            <select
+              className="field mt-1"
+              value={recurso}
+              onChange={(e) => setRecurso(e.target.value)}
+            >
+              <option value="PV">PV</option>
+              <option value="SAN">SAN</option>
+            </select>
+          </div>
+          <div className="min-w-[9rem] flex-1">
+            <label className="label">Especialista</label>
+            <select
+              className="field mt-1"
+              value={especialista}
+              onChange={(e) => setEspecialista(e.target.value)}
+            >
+              <option value="">— nenhuma —</option>
+              {subOpcoes.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {subclassLabel(s.key)} ({classLabel(s.classe)})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="w-20">
+            <label className="label">Bônus esp.</label>
+            <input
+              type="number"
+              className="field mt-1"
+              value={bonusEsp}
+              onChange={(e) => setBonusEsp(Math.trunc(Number(e.target.value) || 0))}
+            />
+          </div>
+          <div className="w-24">
+            <label className="label">Usos s/ esp.</label>
+            <input
+              type="number"
+              min={1}
+              className="field mt-1"
+              value={usosSemEsp}
+              onChange={(e) => setUsosSemEsp(Math.max(1, Number(e.target.value) || 1))}
+            />
+          </div>
+        </div>
+      )}
       <p className="typewriter mt-3 text-[0.65rem] text-sepia">
-        Ao clicar em Usar, o efeito de PV/SAN é aplicado, gasta 1 uso e salva
-        automaticamente. {combatente ? "Combatente rola o dado de dano 2× e usa o maior." : ""}
+        Ao usar, o efeito é aplicado e os usos gastos. Itens com “dado efeito”
+        rolam (ex.: 1d6+3 PV); o especialista soma o bônus e gasta 1 uso, quem
+        não é gasta mais usos e recebe metade.{" "}
+        {combatente ? "Combatente rola o dado de dano 2× e usa o maior." : ""}
       </p>
     </div>
   );

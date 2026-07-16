@@ -19,6 +19,7 @@ import {
 } from "@/lib/game";
 import { parseRollCommand } from "@/lib/dice";
 import { parseInventory, parseStringArray } from "@/lib/character";
+import { computeItemEffect, type ItemEffect } from "@/lib/items";
 import {
   createCharacterSchema,
   createPlayerSchema,
@@ -372,6 +373,12 @@ export async function chooseSubclass(
       usos: sc.item.usos ?? 1,
       efeitoPv: sc.item.efeitoPv ?? 0,
       efeitoSan: sc.item.efeitoSan ?? 0,
+      dadoEfeito: sc.item.dadoEfeito ?? "",
+      baseEfeito: sc.item.baseEfeito ?? 0,
+      recurso: sc.item.recurso ?? "PV",
+      especialista: sc.item.especialista ?? "",
+      bonusEspecialista: sc.item.bonusEspecialista ?? 0,
+      usosSemEspecialista: sc.item.usosSemEspecialista ?? 5,
     });
   }
 
@@ -1337,36 +1344,59 @@ export async function ajustarRecursos(
   return { ok: true, id };
 }
 
-// Usa um item do personagem (aplica efeito PV/SAN e gasta 1 uso) — ficha rápida.
+// Usa um item do personagem: rola o efeito (se tiver dado), escala pela classe
+// (especialista vs. não), gasta os usos e registra no chat. Devolve o efeito.
+export interface UsoItemResult extends ActionResult {
+  efeito?: ItemEffect;
+  nome?: string;
+}
+
 export async function usarItemRapido(
   characterId: string,
   index: number,
-): Promise<ActionResult> {
-  const viewer = await getViewer();
-  if (!viewer) return fail("Não autenticado.");
+): Promise<UsoItemResult> {
+  const session = await auth();
+  if (!session?.user) return fail("Não autenticado.");
+  const isMaster = session.user.role === ROLES.MASTER;
   const ch = await prisma.character.findUnique({ where: { id: characterId } });
   if (!ch) return fail("Personagem não encontrado.");
-  const isMaster = viewer.role === ROLES.MASTER;
-  if (!isMaster && ch.ownerId !== viewer.id)
+  if (!isMaster && ch.ownerId !== session.user.id)
     return fail("Só o seu próprio personagem.");
   const inv = parseInventory(ch.inventory);
   const it = inv[index];
   if (!it) return fail("Item inválido.");
   if (it.usos <= 0) return fail("Sem usos restantes.");
+
+  const efeito = computeItemEffect(it, ch.subclasse);
+  const gasto = Math.min(efeito.usosGastos, it.usos);
   const novoInv = inv.map((x, i) =>
-    i === index ? { ...x, usos: Math.max(0, x.usos - 1) } : x,
+    i === index ? { ...x, usos: Math.max(0, x.usos - gasto) } : x,
   );
   await prisma.character.update({
     where: { id: characterId },
     data: {
       inventory: JSON.stringify(novoInv),
-      pvAtual: ch.pvAtual + (it.efeitoPv || 0),
-      sanAtual: ch.sanAtual + (it.efeitoSan || 0),
+      pvAtual: ch.pvAtual + efeito.dPv,
+      sanAtual: ch.sanAtual + efeito.dSan,
     },
   });
+
+  // Log no chat (mostra o personagem vinculado).
+  const usoTxt = gasto > 1 ? ` · ${gasto} usos` : "";
+  await prisma.message.create({
+    data: {
+      autorNome: session.user.name ?? "?",
+      autorRole: session.user.role ?? ROLES.PLAYER,
+      autorId: session.user.id ?? null,
+      tipo: "ROLL",
+      texto: `🧪 ${efeito.label}${usoTxt}`,
+      personagem: ch.name,
+    },
+  });
+
   revalidateCharacter(characterId);
   revalidateMapa();
-  return { ok: true, id: characterId };
+  return { ok: true, id: characterId, efeito, nome: it.nome };
 }
 
 export async function limparTokens(): Promise<ActionResult> {

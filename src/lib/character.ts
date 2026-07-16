@@ -14,6 +14,13 @@ export interface InventoryItem {
   usos: number;
   efeitoPv: number; // aplicado ao PV ao usar (pode ser negativo)
   efeitoSan: number; // aplicado à Sanidade ao usar
+  // Efeito com rolagem (opcional). Se dadoEfeito preenchido, o "Usar" rola.
+  dadoEfeito?: string; // ex.: "1d6" ("" = sem rolagem)
+  baseEfeito?: number; // valor fixo somado ao dado (ex.: +3)
+  recurso?: string; // "PV" | "SAN" — recurso afetado pela rolagem
+  especialista?: string; // chave da subclasse especialista ("" = nenhuma)
+  bonusEspecialista?: number; // somado se o usuário for da subclasse
+  usosSemEspecialista?: number; // usos gastos por quem NÃO é especialista
 }
 
 // DTO seguro enviado ao cliente. Campos sensíveis só existem quando permitidos.
@@ -72,19 +79,37 @@ export function parseInventory(raw: string | null): InventoryItem[] {
     if (!Array.isArray(parsed)) return [];
     const num = (v: unknown, def: number) =>
       typeof v === "number" && Number.isFinite(v) ? v : def;
+    const base = (): Omit<InventoryItem, "nome" | "dano" | "qtd" | "usos"> => ({
+      efeitoPv: 0,
+      efeitoSan: 0,
+      dadoEfeito: "",
+      baseEfeito: 0,
+      recurso: "PV",
+      especialista: "",
+      bonusEspecialista: 0,
+      usosSemEspecialista: 5,
+    });
+    const str = (v: unknown, def: string) =>
+      typeof v === "string" ? v : def;
     return parsed
       .map((x): InventoryItem | null => {
         // Compatibilidade: formato antigo (string) ou sem qtd/usos → padrão 1.
         if (typeof x === "string")
-          return { nome: x, dano: "", qtd: 1, usos: 1, efeitoPv: 0, efeitoSan: 0 };
+          return { nome: x, dano: "", qtd: 1, usos: 1, ...base() };
         if (x && typeof x === "object" && typeof x.nome === "string") {
           return {
             nome: x.nome,
-            dano: typeof x.dano === "string" ? x.dano : "",
+            dano: str(x.dano, ""),
             qtd: num(x.qtd, 1),
             usos: num(x.usos, 1),
             efeitoPv: num(x.efeitoPv, 0),
             efeitoSan: num(x.efeitoSan, 0),
+            dadoEfeito: str(x.dadoEfeito, ""),
+            baseEfeito: num(x.baseEfeito, 0),
+            recurso: str(x.recurso, "PV") === "SAN" ? "SAN" : "PV",
+            especialista: str(x.especialista, ""),
+            bonusEspecialista: num(x.bonusEspecialista, 0),
+            usosSemEspecialista: num(x.usosSemEspecialista, 5),
           };
         }
         return null;
