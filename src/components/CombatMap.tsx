@@ -14,6 +14,7 @@ import {
   setMapFog,
   setRevelado,
   setTokenLado,
+  setTokenLuz,
   setTokenStatus,
   updateMapSettings,
   usarItemRapido,
@@ -30,6 +31,7 @@ import { DiceRoller } from "@/components/DiceRoller";
 import { WeaponRoller } from "@/components/WeaponRoller";
 import { ChatBox } from "@/components/ChatBox";
 import { DiceStage, type StageData } from "@/components/DiceStage";
+import { FogCanvas, type Luz } from "@/components/FogCanvas";
 
 function fmtSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -87,6 +89,7 @@ interface Token {
   ownerId: string | null;
   lado: string;
   status: string;
+  luz: number;
   size: number;
   x: number;
   y: number;
@@ -218,6 +221,15 @@ export function CombatMap({
   const areaH = data.map.rows * cell;
   const podeEditar =
     !!ficha && (isMaster || ficha.ownerId === data.viewerId);
+
+  // Fontes de luz (tokens com lanterna) — centro + raio em px.
+  const luzes: Luz[] = data.tokens
+    .filter((t) => t.luz > 0)
+    .map((t) => {
+      const p = pos[t.id] ?? { x: t.x, y: t.y };
+      const sz = sizes[t.id] ?? (t.size > 0 ? t.size : cell);
+      return { x: p.x + sz / 2, y: p.y + sz / 2, r: t.luz * cell };
+    });
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -1226,11 +1238,6 @@ export function CombatMap({
             {data.tokens.map((t) => {
               const p = pos[t.id] ?? { x: t.x, y: t.y };
               const meu = isMaster || t.ownerId === data.viewerId;
-              // Esconde tokens sob a névoa para jogadores.
-              if (data.map.fog && !isMaster) {
-                const tc = `${Math.floor((p.x + (sizes[t.id] ?? cell) / 2) / cell)},${Math.floor((p.y + (sizes[t.id] ?? cell) / 2) / cell)}`;
-                if (!revelado.has(tc)) return null;
-              }
               const ehTurno =
                 !!data.turno &&
                 t.nome.trim() !== "" &&
@@ -1359,6 +1366,27 @@ export function CombatMap({
                           ))}
                         </div>
                       )}
+                      {/* Lanterna: raio de luz em quadros */}
+                      <div className="flex items-center gap-1 rounded-full bg-ink/90 px-1.5 py-0.5 shadow">
+                        <span className="text-[0.6rem]">💡</span>
+                        <button
+                          type="button"
+                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
+                          onClick={() => run(() => setTokenLuz(t.id, Math.max(0, t.luz - 1)))}
+                        >
+                          −
+                        </button>
+                        <span className="typewriter w-4 text-center text-[0.6rem] text-paper-light">
+                          {t.luz}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
+                          onClick={() => run(() => setTokenLuz(t.id, t.luz + 1))}
+                        >
+                          ＋
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1386,33 +1414,16 @@ export function CombatMap({
               );
             })}
 
-            {/* Névoa de guerra: cobre células não reveladas. */}
+            {/* Névoa de guerra com luz em degradê (lanternas/lampiões). */}
             {data.map.fog && (
-              <div
-                className="pointer-events-none absolute left-0 top-0"
-                style={{ width: areaW, height: areaH }}
-              >
-                {Array.from({ length: data.map.cols * data.map.rows }).map(
-                  (_, idx) => {
-                    const c = idx % data.map.cols;
-                    const r = Math.floor(idx / data.map.cols);
-                    if (revelado.has(`${c},${r}`)) return null;
-                    return (
-                      <div
-                        key={idx}
-                        className="absolute"
-                        style={{
-                          left: c * cell,
-                          top: r * cell,
-                          width: cell + 1,
-                          height: cell + 1,
-                          background: isMaster ? "rgba(6,5,4,0.55)" : "#050403",
-                        }}
-                      />
-                    );
-                  },
-                )}
-              </div>
+              <FogCanvas
+                areaW={areaW}
+                areaH={areaH}
+                cell={cell}
+                revelado={[...revelado]}
+                luzes={luzes}
+                isMaster={isMaster}
+              />
             )}
           </div>
         </div>

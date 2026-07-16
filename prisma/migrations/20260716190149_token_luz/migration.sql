@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "MapToken" ADD COLUMN     "luz" INTEGER NOT NULL DEFAULT 0;

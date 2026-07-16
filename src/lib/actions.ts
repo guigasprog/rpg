@@ -1447,6 +1447,24 @@ export async function setTokenStatus(
   return { ok: true, id };
 }
 
+// Define o raio de luz (lanterna/lampião) do token, em quadros. Mestre ou dono.
+export async function setTokenLuz(
+  id: string,
+  luz: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id)
+    return fail("Você só altera o seu token.");
+  const l = Math.max(0, Math.min(30, Math.trunc(luz) || 0));
+  await prisma.mapToken.update({ where: { id }, data: { luz: l } });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
 // Redimensiona um token (px). 0 volta ao tamanho de um quadro. Mestre ou dono.
 export async function resizeMapToken(
   id: string,
