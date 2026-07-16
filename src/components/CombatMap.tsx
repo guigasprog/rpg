@@ -15,7 +15,9 @@ import {
   setRevelado,
   setTokenLado,
   setTokenLuz,
+  setTokenRot,
   setTokenStatus,
+  setTokenTipo,
   updateMapSettings,
   usarItemRapido,
 } from "@/lib/actions";
@@ -88,6 +90,8 @@ interface Token {
   characterId: string | null;
   ownerId: string | null;
   lado: string;
+  tipo: string;
+  rot: number;
   status: string;
   luz: number;
   size: number;
@@ -201,6 +205,7 @@ export function CombatMap({
     nome: string;
     imageUrl: string | null;
     lado: string;
+    tipo: string;
     status: string;
     size: number;
     x: number;
@@ -214,6 +219,7 @@ export function CombatMap({
   const [tkNome, setTkNome] = useState("");
   const [tkImg, setTkImg] = useState("");
   const [tkLado, setTkLado] = useState("INIMIGO");
+  const [tkTipo, setTkTipo] = useState("TOKEN");
 
   const isMaster = data.isMaster;
   const cell = data.map.cell;
@@ -396,6 +402,7 @@ export function CombatMap({
           nome: t.nome,
           imageUrl: t.imageUrl,
           lado: t.lado,
+          tipo: t.tipo,
           status: t.status,
           size: sizes[t.id] ?? t.size,
           x: p.x,
@@ -414,6 +421,7 @@ export function CombatMap({
             clip.lado,
             nx,
             ny,
+            clip.tipo,
           ),
         );
       }
@@ -909,7 +917,7 @@ export function CombatMap({
             </section>
 
             <section className="paper paper-edge space-y-2 rounded-md p-3">
-              <p className="label">Token avulso (inimigo/PNJ)</p>
+              <p className="label">Token avulso / objeto</p>
               <input
                 className="field text-sm"
                 value={tkNome}
@@ -920,8 +928,26 @@ export function CombatMap({
                 className="field text-sm"
                 value={tkImg}
                 onChange={(e) => setTkImg(e.target.value)}
-                placeholder="Imagem (URL, opcional)"
+                placeholder="Imagem (URL/PNG, opcional)"
               />
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTkTipo("TOKEN")}
+                  className={`btn tap text-[0.65rem] ${tkTipo === "TOKEN" ? "btn-primary" : "btn-dark"}`}
+                >
+                  Token
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTkTipo("PROP")}
+                  className={`btn tap text-[0.65rem] ${tkTipo === "PROP" ? "btn-primary" : "btn-dark"}`}
+                  title="Objeto/cenário: PNG completo, girável (ex.: tocha, poste, lampião)"
+                >
+                  Objeto PNG
+                </button>
+              </div>
+              {tkTipo === "TOKEN" && (
               <div className="flex items-center gap-1">
                 {LADOS.map((l) => (
                   <button
@@ -938,6 +964,7 @@ export function CombatMap({
                   </button>
                 ))}
               </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -945,7 +972,14 @@ export function CombatMap({
                   disabled={!tkNome.trim() && !tkImg.trim()}
                   onClick={() =>
                     run(async () => {
-                      const r = await addMapTokenCustom(tkNome, tkImg, tkLado);
+                      const r = await addMapTokenCustom(
+                        tkNome,
+                        tkImg,
+                        tkLado,
+                        undefined,
+                        undefined,
+                        tkTipo,
+                      );
                       if (r.ok) {
                         setTkNome("");
                         setTkImg("");
@@ -954,7 +988,7 @@ export function CombatMap({
                     })
                   }
                 >
-                  ＋ Token
+                  {tkTipo === "PROP" ? "＋ Objeto" : "＋ Token"}
                 </button>
                 <button
                   type="button"
@@ -1249,6 +1283,7 @@ export function CombatMap({
               if (isSel) ringos.push("0 0 0 6px rgba(231,220,196,0.9)");
               if (ehTurno) ringos.push("0 0 18px 5px rgba(224,192,96,0.9)");
               const icone = statusIcone(t.status);
+              const ehProp = t.tipo === "PROP";
               return (
                 <div
                   key={t.id}
@@ -1261,8 +1296,17 @@ export function CombatMap({
                   className={`absolute select-none ${meu ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                 >
                   <div
-                    className={`token relative h-full w-full overflow-hidden rounded-full ${ehTurno ? "turno-pulse" : ""}`}
-                    style={{ boxShadow: ringos.join(", ") }}
+                    className={`relative h-full w-full ${ehProp ? "" : "token overflow-hidden rounded-full"} ${ehTurno ? "turno-pulse" : ""}`}
+                    style={
+                      ehProp
+                        ? {
+                            transform: `rotate(${t.rot}deg)`,
+                            boxShadow: isSel
+                              ? "0 0 0 2px rgba(231,220,196,0.9)"
+                              : undefined,
+                          }
+                        : { boxShadow: ringos.join(", ") }
+                    }
                   >
                     {t.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -1270,14 +1314,18 @@ export function CombatMap({
                         src={t.imageUrl}
                         alt={t.nome}
                         draggable={false}
-                        className="h-full w-full object-cover grayscale"
+                        className={
+                          ehProp
+                            ? "h-full w-full object-contain"
+                            : "h-full w-full object-cover grayscale"
+                        }
                       />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center bg-sepia-ink text-paper-light">
                         {t.nome.slice(0, 2) || "?"}
                       </span>
                     )}
-                    {t.status === "MORTO" && (
+                    {!ehProp && t.status === "MORTO" && (
                       <span
                         className="pointer-events-none absolute inset-0"
                         style={{
@@ -1385,6 +1433,35 @@ export function CombatMap({
                           onClick={() => run(() => setTokenLuz(t.id, t.luz + 1))}
                         >
                           ＋
+                        </button>
+                        <span className="mx-0.5 h-3.5 w-px bg-paper/25" />
+                        <button
+                          type="button"
+                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
+                          title="Girar −45°"
+                          onClick={() => run(() => setTokenRot(t.id, t.rot - 45))}
+                        >
+                          ↺
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
+                          title="Girar +45°"
+                          onClick={() => run(() => setTokenRot(t.id, t.rot + 45))}
+                        >
+                          ↻
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn px-1.5 py-0 text-[0.6rem] ${ehProp ? "btn-primary" : "btn-dark"}`}
+                          title="Alternar objeto PNG (girável) / token"
+                          onClick={() =>
+                            run(() =>
+                              setTokenTipo(t.id, ehProp ? "TOKEN" : "PROP"),
+                            )
+                          }
+                        >
+                          🗿
                         </button>
                       </div>
                     </div>

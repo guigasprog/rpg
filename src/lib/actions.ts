@@ -1326,6 +1326,7 @@ export async function addMapTokenCustom(
   lado: string = "INIMIGO",
   x?: number,
   y?: number,
+  tipo: string = "TOKEN",
 ): Promise<ActionResult> {
   try {
     await requireMaster();
@@ -1343,12 +1344,47 @@ export async function addMapTokenCustom(
       nome: n,
       imageUrl: (imageUrl ?? "").trim() || null,
       lado: ladoFinal,
+      tipo: tipo === "PROP" ? "PROP" : "TOKEN",
       x: temPos ? Math.trunc(x!) || 0 : (count % 8) * map.cell,
       y: temPos ? Math.trunc(y!) || 0 : Math.floor(count / 8) * map.cell,
     },
   });
   revalidateMapa();
   return { ok: true };
+}
+
+export async function setTokenTipo(
+  id: string,
+  tipo: string,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id) return fail("Sem permissão.");
+  await prisma.mapToken.update({
+    where: { id },
+    data: { tipo: tipo === "PROP" ? "PROP" : "TOKEN" },
+  });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
+export async function setTokenRot(
+  id: string,
+  rot: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id) return fail("Sem permissão.");
+  const r = ((Math.trunc(rot) % 360) + 360) % 360;
+  await prisma.mapToken.update({ where: { id }, data: { rot: r } });
+  revalidateMapa();
+  return { ok: true, id };
 }
 
 // Mestre puxa um token a partir de uma entrada do Livro (monstro/PNJ).

@@ -129,6 +129,8 @@ model MapToken {
   characterId String? // se veio de um personagem (retrato)
   ownerId     String? // quem controla o token (jogador dono); null = só Mestre
   lado        String   @default("ALIADO") // ALIADO | INIMIGO | NEUTRO
+  tipo        String   @default("TOKEN") // TOKEN (avatar) | PROP (objeto PNG)
+  rot         Int      @default(0) // rotação em graus (props giráveis)
   status      String   @default("") // marcador: MORTO, FERIDO, ATORDOADO...
   luz         Int      @default(0) // raio de luz em quadros (0 = sem lanterna)
   size        Int      @default(0) // px; 0 = usa o tamanho de um quadro (cell)
