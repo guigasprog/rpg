@@ -91,6 +91,18 @@ model EvidenceNote {
   @@index([evidenceId])
 }
 
+// Relógios de Tensão (clocks) — progresso/perigo que o Mestre revela à mesa.
+model Clock {
+  id         String   @id @default(cuid())
+  titulo     String
+  segmentos  Int      @default(6)
+  preenchido Int      @default(0)
+  visivel    Boolean  @default(false) // revelado aos jogadores
+  createdAt  DateTime @default(now())
+
+  @@index([visivel])
+}
+
 // Mapa de combate (tabletop). Singleton: id fixo "main".
 model GameMap {
   id            String   @id @default("main")

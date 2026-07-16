@@ -7,6 +7,7 @@ import { EncounterBanner } from "@/components/EncounterBanner";
 import { SanityAtmosphere } from "@/components/SanityAtmosphere";
 import { ChatPanel } from "@/components/ChatPanel";
 import { InitiativePanel } from "@/components/InitiativePanel";
+import { ClocksPanel } from "@/components/ClocksPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,7 @@ export default async function AppLayout({
       </footer>
       <ChatPanel />
       <InitiativePanel isMaster={viewer.role === ROLES.MASTER} />
+      <ClocksPanel isMaster={viewer.role === ROLES.MASTER} />
     </div>
   );
 }

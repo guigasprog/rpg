@@ -1116,6 +1116,71 @@ export async function aplicarCondicoesTick(id: string): Promise<ActionResult> {
   return { ok: true, id };
 }
 
+// ---------------- Relógios de Tensão ----------------
+
+function revalidateClocks() {
+  revalidatePath("/mestre");
+}
+
+export async function createClock(
+  titulo: string,
+  segmentos: number,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const t = (titulo ?? "").trim().slice(0, 120);
+  if (!t) return fail("Dê um nome ao relógio.");
+  const seg = Math.max(2, Math.min(12, Math.trunc(segmentos) || 6));
+  await prisma.clock.create({ data: { titulo: t, segmentos: seg } });
+  revalidateClocks();
+  return { ok: true };
+}
+
+export async function avancarClock(
+  id: string,
+  delta: number,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const c = await prisma.clock.findUnique({ where: { id } });
+  if (!c) return fail("Relógio não encontrado.");
+  const novo = Math.max(0, Math.min(c.segmentos, c.preenchido + Math.trunc(delta)));
+  await prisma.clock.update({ where: { id }, data: { preenchido: novo } });
+  revalidateClocks();
+  return { ok: true, id };
+}
+
+export async function setClockVisivel(
+  id: string,
+  visivel: boolean,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.clock.update({ where: { id }, data: { visivel } });
+  revalidateClocks();
+  return { ok: true, id };
+}
+
+export async function deleteClock(id: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.clock.delete({ where: { id } });
+  revalidateClocks();
+  return { ok: true };
+}
+
 // ---------------- Mapa de combate ----------------
 
 function revalidateMapa() {
