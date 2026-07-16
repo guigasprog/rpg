@@ -1449,9 +1449,15 @@ export async function enviarMensagem(texto: string): Promise<ActionResult> {
     if (!roll) {
       return fail("Comando inválido. Ex.: !2d6+inv · !1d20 · !2d6+3 · !s2d6");
     }
+    const critTxt =
+      roll.crit === "SUCESSO"
+        ? " ✦CRÍTICO"
+        : roll.crit === "FALHA"
+          ? " ✦DESASTRE"
+          : "";
     const fim = roll.outcome ? ` — ${OUTCOME_LABEL[roll.outcome]}` : "";
     const selo = secreta ? "🔒 " : "🎲 ";
-    const texto2 = `${selo}${roll.expr}: [${roll.rolls.join(", ")}] = ${roll.total}${fim}`;
+    const texto2 = `${selo}${roll.expr}: [${roll.rolls.join(", ")}] = ${roll.total}${fim}${critTxt}`;
     await prisma.message.create({
       data: {
         autorNome,

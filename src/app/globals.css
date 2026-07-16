@@ -656,3 +656,21 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .turno-pulse { animation: none; }
 }
+
+/* Animação de rolagem no centro da tela. */
+.dado-stage {
+  box-shadow: 0 12px 30px -10px #000, inset 0 0 0 2px rgba(143, 35, 32, 0.3);
+}
+@keyframes dado-girar {
+  0% { transform: rotate(0deg) scale(0.9); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.dado-girando {
+  animation: dado-girar 0.28s linear infinite;
+}
+.dado-crit {
+  box-shadow: 0 0 24px 6px rgba(224, 192, 96, 0.9), inset 0 0 0 2px rgba(176, 51, 44, 0.5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dado-girando { animation: none; }
+}

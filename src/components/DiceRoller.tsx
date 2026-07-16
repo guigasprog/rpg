@@ -5,6 +5,27 @@ import { roll2d6, type RollResult } from "@/lib/dice";
 import { ATTRIBUTES, OUTCOME_LABEL } from "@/lib/game";
 import { registrarRolagem } from "@/lib/actions";
 import { DiceIcon } from "@/components/icons";
+import { DiceStage, type StageData } from "@/components/DiceStage";
+
+function stageDeRoll(r: RollResult, label: string): StageData {
+  const resultado =
+    r.crit === "SUCESSO"
+      ? "CRÍTICO!"
+      : r.crit === "FALHA"
+        ? "DESASTRE!"
+        : OUTCOME_LABEL[r.outcome];
+  const tom: StageData["tom"] =
+    r.crit === "SUCESSO"
+      ? "crit"
+      : r.crit === "FALHA"
+        ? "critfail"
+        : r.outcome === "TOTAL"
+          ? "ok"
+          : r.outcome === "PARCIAL"
+            ? "parcial"
+            : "ruim";
+  return { dados: r.dice, total: r.total, label, resultado, tom };
+}
 
 interface Props {
   attrs: {
@@ -32,6 +53,15 @@ export function DiceRoller({ attrs, focos = [], personagem }: Props) {
   const [used, setUsed] = useState<string>("");
   const [lastKey, setLastKey] = useState<string>("");
   const [rerrolagemOk, setRerrolagemOk] = useState(true);
+  const [stage, setStage] = useState<StageData | null>(null);
+
+  function critLabel(r: RollResult): string {
+    return r.crit === "SUCESSO"
+      ? "CRÍTICO!"
+      : r.crit === "FALHA"
+        ? "DESASTRE!"
+        : OUTCOME_LABEL[r.outcome];
+  }
 
   function doRoll(key: string, label: string) {
     const mod = attrs[key as keyof typeof attrs] ?? 0;
@@ -39,8 +69,9 @@ export function DiceRoller({ attrs, focos = [], personagem }: Props) {
     setResult(r);
     setUsed(label);
     setLastKey(key);
+    setStage(stageDeRoll(r, `${label} · 2d6 ${fmt(mod)}`));
     void registrarRolagem(
-      `🎲 ${label} (2d6 ${fmt(mod)}): [${r.dice.join(", ")}] = ${r.total} — ${OUTCOME_LABEL[r.outcome]}`,
+      `🎲 ${label} (2d6 ${fmt(mod)}): [${r.dice.join(", ")}] = ${r.total} — ${critLabel(r)}`,
       personagem,
     );
   }
@@ -51,8 +82,9 @@ export function DiceRoller({ attrs, focos = [], personagem }: Props) {
     const r = roll2d6(mod);
     setResult(r);
     setRerrolagemOk(false);
+    setStage(stageDeRoll(r, `${used} · rerrolado (foco)`));
     void registrarRolagem(
-      `🎲 ${used} rerrolado (foco): [${r.dice.join(", ")}] = ${r.total} — ${OUTCOME_LABEL[r.outcome]}`,
+      `🎲 ${used} rerrolado (foco): [${r.dice.join(", ")}] = ${r.total} — ${critLabel(r)}`,
       personagem,
     );
   }
@@ -61,6 +93,8 @@ export function DiceRoller({ attrs, focos = [], personagem }: Props) {
   const podeRerolar = temFoco && focos.includes(lastKey) && rerrolagemOk && !!result;
 
   return (
+    <>
+    <DiceStage data={stage} onClose={() => setStage(null)} />
     <div className="rounded border border-sepia/30 bg-black/5 p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="display flex items-center gap-2 text-sm text-sepia-ink">
@@ -114,9 +148,19 @@ export function DiceRoller({ attrs, focos = [], personagem }: Props) {
             <span className="text-sepia"> ({used})</span>
           </div>
           <div
-            className={`display ml-auto text-sm ${OUTCOME_COLOR[result.outcome]}`}
+            className={`display ml-auto text-sm ${
+              result.crit === "SUCESSO"
+                ? "text-emerald-800"
+                : result.crit === "FALHA"
+                  ? "text-stamp"
+                  : OUTCOME_COLOR[result.outcome]
+            }`}
           >
-            {OUTCOME_LABEL[result.outcome]}
+            {result.crit === "SUCESSO"
+              ? "✦ CRÍTICO!"
+              : result.crit === "FALHA"
+                ? "✦ DESASTRE!"
+                : OUTCOME_LABEL[result.outcome]}
           </div>
         </div>
       )}
@@ -136,5 +180,6 @@ export function DiceRoller({ attrs, focos = [], personagem }: Props) {
         </p>
       )}
     </div>
+    </>
   );
 }

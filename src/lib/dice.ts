@@ -1,10 +1,13 @@
 import { resolveOutcome, type DiceOutcome } from "@/lib/game";
 
+export type Crit = "SUCESSO" | "FALHA" | null;
+
 export interface RollResult {
   dice: [number, number];
   modifier: number;
   total: number;
   outcome: DiceOutcome;
+  crit: Crit; // dois 6 = crítico de sucesso; dois 1 = desastre
 }
 
 function d6(): number {
@@ -14,7 +17,13 @@ function d6(): number {
 export function roll2d6(modifier = 0): RollResult {
   const dice: [number, number] = [d6(), d6()];
   const total = dice[0] + dice[1] + modifier;
-  return { dice, modifier, total, outcome: resolveOutcome(total) };
+  const crit: Crit =
+    dice[0] === 6 && dice[1] === 6
+      ? "SUCESSO"
+      : dice[0] === 1 && dice[1] === 1
+        ? "FALHA"
+        : null;
+  return { dice, modifier, total, outcome: resolveOutcome(total), crit };
 }
 
 // ---------------- Dano ----------------
@@ -45,6 +54,7 @@ export interface CommandRoll {
   modLabel: string;
   total: number;
   outcome: DiceOutcome | null;
+  crit: Crit;
 }
 
 const ATTR_MAP: Record<string, string> = {
@@ -85,6 +95,12 @@ export function parseRollCommand(
   const diceSum = rolls.reduce((s, v) => s + v, 0);
   const total = diceSum + modifier;
   const outcome = qtd === 2 && faces === 6 ? resolveOutcome(total) : null;
+  // Crítico: todos os dados no valor máximo; desastre: todos em 1.
+  const crit: Crit = rolls.every((v) => v === faces)
+    ? "SUCESSO"
+    : rolls.every((v) => v === 1)
+      ? "FALHA"
+      : null;
 
   return {
     expr: `${qtd}d${faces}${modLabel}`.trim(),
@@ -94,6 +110,7 @@ export function parseRollCommand(
     modLabel,
     total,
     outcome,
+    crit,
   };
 }
 
@@ -105,6 +122,7 @@ export interface DamageResult {
   diceSum: number;
   total: number;
   advantage: boolean;
+  crit: boolean; // todos os dados no valor máximo
 }
 
 // Dano = dado(s) da arma + Combate. Combatente rola o conjunto 2× e usa o maior.
@@ -143,5 +161,6 @@ export function rollDamage(
     diceSum,
     total: diceSum + combate,
     advantage,
+    crit: rolls.every((v) => v === parsed.faces),
   };
 }
