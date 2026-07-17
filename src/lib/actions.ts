@@ -1483,20 +1483,47 @@ export async function setTokenStatus(
   return { ok: true, id };
 }
 
-// Define o raio de luz (lanterna/lampião) do token, em quadros. Mestre ou dono.
+// Brilho/iluminação — SÓ o Mestre edita (raio, cor, cone).
 export async function setTokenLuz(
   id: string,
   luz: number,
 ): Promise<ActionResult> {
-  const viewer = await getViewer();
-  if (!viewer) return fail("Não autenticado.");
-  const tk = await prisma.mapToken.findUnique({ where: { id } });
-  if (!tk) return fail("Token não encontrado.");
-  const isMaster = viewer.role === ROLES.MASTER;
-  if (!isMaster && tk.ownerId !== viewer.id)
-    return fail("Você só altera o seu token.");
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
   const l = Math.max(0, Math.min(30, Math.trunc(luz) || 0));
   await prisma.mapToken.update({ where: { id }, data: { luz: l } });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
+export async function setTokenLuzCor(
+  id: string,
+  cor: string,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const c = /^#[0-9a-fA-F]{6}$/.test(cor) ? cor : "#f2d79a";
+  await prisma.mapToken.update({ where: { id }, data: { luzCor: c } });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
+export async function setTokenLuzCone(
+  id: string,
+  cone: boolean,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.mapToken.update({ where: { id }, data: { luzCone: !!cone } });
   revalidateMapa();
   return { ok: true, id };
 }

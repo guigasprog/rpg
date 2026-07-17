@@ -15,6 +15,8 @@ import {
   setRevelado,
   setTokenLado,
   setTokenLuz,
+  setTokenLuzCone,
+  setTokenLuzCor,
   setTokenRot,
   setTokenStatus,
   setTokenTipo,
@@ -94,6 +96,8 @@ interface Token {
   rot: number;
   status: string;
   luz: number;
+  luzCor: string;
+  luzCone: boolean;
   size: number;
   x: number;
   y: number;
@@ -190,6 +194,9 @@ export function CombatMap({
     x1: number;
     y1: number;
   } | null>(null);
+  const [rotDrag, setRotDrag] = useState<{ id: string; rot: number } | null>(
+    null,
+  );
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [qtd, setQtd] = useState(1);
@@ -228,18 +235,30 @@ export function CombatMap({
   const podeEditar =
     !!ficha && (isMaster || ficha.ownerId === data.viewerId);
 
-  // Fontes de luz (tokens com lanterna) — centro + raio em px.
+  // Fontes de luz visíveis para o viewer: o Mestre vê todas; o jogador só o
+  // brilho do próprio token e o de objetos (PROP) — o dos outros fica oculto.
   const luzes: Luz[] = data.tokens
     .filter((t) => t.luz > 0)
+    .filter(
+      (t) =>
+        isMaster || t.ownerId === data.viewerId || t.tipo === "PROP",
+    )
     .map((t) => {
       const p = pos[t.id] ?? { x: t.x, y: t.y };
       const sz = sizes[t.id] ?? (t.size > 0 ? t.size : cell);
-      return { x: p.x + sz / 2, y: p.y + sz / 2, r: t.luz * cell };
+      return {
+        x: p.x + sz / 2,
+        y: p.y + sz / 2,
+        r: t.luz * cell,
+        cor: t.luzCor || "#f2d79a",
+        cone: t.luzCone,
+        dir: t.rot,
+      };
     });
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
-    kind: "pan" | "token" | "resize" | "marquee" | "nevoa" | "medir";
+    kind: "pan" | "token" | "resize" | "marquee" | "nevoa" | "medir" | "rotate";
     id?: string;
     canMove?: boolean;
     startX: number;
@@ -247,6 +266,7 @@ export function CombatMap({
     ox: number;
     oy: number;
     osize?: number;
+    rotVal?: number;
     moved?: boolean;
     shift?: boolean;
     origPos?: Record<string, { x: number; y: number }>;
@@ -592,9 +612,39 @@ export function CombatMap({
     };
   }
 
+  function onDownRot(e: React.PointerEvent, t: Token) {
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    const rect = wrapRef.current?.getBoundingClientRect();
+    const p = pos[t.id] ?? { x: t.x, y: t.y };
+    const sz = sizes[t.id] ?? (t.size > 0 ? t.size : cell);
+    const cx = (rect?.left ?? 0) + view.tx + (p.x + sz / 2) * view.scale;
+    const cy = (rect?.top ?? 0) + view.ty + (p.y + sz / 2) * view.scale;
+    dragRef.current = {
+      kind: "rotate",
+      id: t.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      ox: cx,
+      oy: cy,
+      rotVal: t.rot,
+    };
+    setRotDrag({ id: t.id, rot: t.rot });
+  }
+
   function onMove(e: React.PointerEvent) {
     const d = dragRef.current;
     if (!d) return;
+    if (d.kind === "rotate" && d.id) {
+      let deg =
+        (Math.atan2(e.clientY - d.oy, e.clientX - d.ox) * 180) / Math.PI + 90;
+      deg = ((Math.round(deg) % 360) + 360) % 360;
+      if (!e.shiftKey) deg = Math.round(deg / 90) * 90; // sem Shift: passos de 90°
+      d.rotVal = deg;
+      const id = d.id;
+      setRotDrag({ id, rot: deg });
+      return;
+    }
     if (d.kind === "pan") {
       setView((v) => ({
         ...v,
@@ -639,6 +689,16 @@ export function CombatMap({
   function onUp() {
     const d = dragRef.current;
     dragRef.current = null;
+    if (d?.kind === "rotate" && d.id) {
+      const id = d.id;
+      const r = d.rotVal ?? 0;
+      void (async () => {
+        await setTokenRot(id, r);
+        await puxar();
+        setRotDrag(null);
+      })();
+      return;
+    }
     if (d?.kind === "nevoa") {
       setReveladoLocal((atual) => {
         void run(() => setRevelado([...atual]));
@@ -1284,6 +1344,7 @@ export function CombatMap({
               if (ehTurno) ringos.push("0 0 18px 5px rgba(224,192,96,0.9)");
               const icone = statusIcone(t.status);
               const ehProp = t.tipo === "PROP";
+              const rotVal = rotDrag?.id === t.id ? rotDrag.rot : t.rot;
               return (
                 <div
                   key={t.id}
@@ -1300,7 +1361,7 @@ export function CombatMap({
                     style={
                       ehProp
                         ? {
-                            transform: `rotate(${t.rot}deg)`,
+                            transform: `rotate(${rotVal}deg)`,
                             boxShadow: isSel
                               ? "0 0 0 2px rgba(231,220,196,0.9)"
                               : undefined,
@@ -1414,57 +1475,75 @@ export function CombatMap({
                           ))}
                         </div>
                       )}
-                      {/* Lanterna: raio de luz em quadros */}
-                      <div className="flex items-center gap-1 rounded-full bg-ink/90 px-1.5 py-0.5 shadow">
-                        <span className="text-[0.6rem]">💡</span>
-                        <button
-                          type="button"
-                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
-                          onClick={() => run(() => setTokenLuz(t.id, Math.max(0, t.luz - 1)))}
-                        >
-                          −
-                        </button>
-                        <span className="typewriter w-4 text-center text-[0.6rem] text-paper-light">
-                          {t.luz}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
-                          onClick={() => run(() => setTokenLuz(t.id, t.luz + 1))}
-                        >
-                          ＋
-                        </button>
-                        <span className="mx-0.5 h-3.5 w-px bg-paper/25" />
-                        <button
-                          type="button"
-                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
-                          title="Girar −45°"
-                          onClick={() => run(() => setTokenRot(t.id, t.rot - 45))}
-                        >
-                          ↺
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
-                          title="Girar +45°"
-                          onClick={() => run(() => setTokenRot(t.id, t.rot + 45))}
-                        >
-                          ↻
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn px-1.5 py-0 text-[0.6rem] ${ehProp ? "btn-primary" : "btn-dark"}`}
-                          title="Alternar objeto PNG (girável) / token"
-                          onClick={() =>
-                            run(() =>
-                              setTokenTipo(t.id, ehProp ? "TOKEN" : "PROP"),
-                            )
-                          }
-                        >
-                          🗿
-                        </button>
-                      </div>
+                      {/* Iluminação e tipo — só o Mestre edita. */}
+                      {isMaster && (
+                        <div className="flex flex-wrap items-center justify-center gap-1 rounded-full bg-ink/90 px-1.5 py-0.5 shadow">
+                          <span className="text-[0.6rem]">💡</span>
+                          <button
+                            type="button"
+                            className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
+                            onClick={() =>
+                              run(() => setTokenLuz(t.id, Math.max(0, t.luz - 1)))
+                            }
+                          >
+                            −
+                          </button>
+                          <span className="typewriter w-4 text-center text-[0.6rem] text-paper-light">
+                            {t.luz}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
+                            onClick={() => run(() => setTokenLuz(t.id, t.luz + 1))}
+                          >
+                            ＋
+                          </button>
+                          <input
+                            type="color"
+                            value={t.luzCor || "#f2d79a"}
+                            onChange={(e) =>
+                              run(() => setTokenLuzCor(t.id, e.target.value))
+                            }
+                            title="Cor do brilho"
+                            className="h-4 w-5 cursor-pointer rounded border-0 bg-transparent p-0"
+                          />
+                          <button
+                            type="button"
+                            className={`btn px-1.5 py-0 text-[0.6rem] ${t.luzCone ? "btn-primary" : "btn-dark"}`}
+                            title="Lanterna (cone) ligada/desligada"
+                            onClick={() =>
+                              run(() => setTokenLuzCone(t.id, !t.luzCone))
+                            }
+                          >
+                            🔦
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn px-1.5 py-0 text-[0.6rem] ${ehProp ? "btn-primary" : "btn-dark"}`}
+                            title="Alternar objeto PNG (girável) / token"
+                            onClick={() =>
+                              run(() =>
+                                setTokenTipo(t.id, ehProp ? "TOKEN" : "PROP"),
+                              )
+                            }
+                          >
+                            🗿
+                          </button>
+                        </div>
+                      )}
                     </div>
+                  )}
+
+                  {/* Pin de giro: arraste para girar (Shift = livre; sem = 90°) */}
+                  {controles && (
+                    <span
+                      onPointerDown={(e) => onDownRot(e, t)}
+                      className="absolute left-1/2 z-20 flex h-4 w-4 -translate-x-1/2 cursor-grab items-center justify-center rounded-full bg-paper-light text-[0.6rem] leading-none text-ink shadow active:cursor-grabbing"
+                      style={{ top: -tsize * 0.5 - 46 }}
+                      title="Arraste para girar (Shift = qualquer ângulo; sem Shift = 90°)"
+                    >
+                      ⟳
+                    </span>
                   )}
 
                   {ehTurno && !isSel && (

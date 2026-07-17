@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "MapToken" ADD COLUMN     "luzCone" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "luzCor" TEXT NOT NULL DEFAULT '#f2d79a';
