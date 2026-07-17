@@ -103,6 +103,14 @@ model Clock {
   @@index([visivel])
 }
 
+// Cena salva do mapa (config + tokens) — o Mestre salva e recarrega p/ a mesa.
+model MapScene {
+  id        String   @id @default(cuid())
+  nome      String
+  dados     String // JSON: { map: {...}, tokens: [...] }
+  createdAt DateTime @default(now())
+}
+
 // Mapa de combate (tabletop). Singleton: id fixo "main".
 model GameMap {
   id            String   @id @default("main")

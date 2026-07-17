@@ -26,6 +26,12 @@ export default async function MapaPage() {
         })
       : Promise.resolve([]),
   ]);
+  const scenes = isMaster
+    ? await prisma.mapScene.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { id: true, nome: true },
+      })
+    : [];
 
   const initial = {
     map: map
@@ -51,6 +57,7 @@ export default async function MapaPage() {
         },
     tokens,
     turno: turnoEntry?.nome ?? null,
+    scenes,
     viewerId: viewer.id,
     isMaster,
   };

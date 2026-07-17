@@ -12,10 +12,17 @@ export async function GET() {
     return NextResponse.json({ error: "não autenticado" }, { status: 401 });
   }
 
-  const [map, tokens, turnoEntry] = await Promise.all([
+  const isMaster = session.user.role === "MASTER";
+  const [map, tokens, turnoEntry, scenes] = await Promise.all([
     prisma.gameMap.findUnique({ where: { id: "main" } }),
     prisma.mapToken.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.initiativeEntry.findFirst({ where: { atual: true } }),
+    isMaster
+      ? prisma.mapScene.findMany({
+          orderBy: { createdAt: "desc" },
+          select: { id: true, nome: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const mapDto = map
@@ -44,7 +51,8 @@ export async function GET() {
     map: mapDto,
     tokens,
     turno: turnoEntry?.nome ?? null,
+    scenes,
     viewerId: session.user.id ?? null,
-    isMaster: session.user.role === "MASTER",
+    isMaster,
   });
 }

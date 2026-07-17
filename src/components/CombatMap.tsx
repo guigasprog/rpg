@@ -7,7 +7,10 @@ import {
   addMapTokenFromLore,
   addMyToken,
   ajustarRecursos,
+  carregarCena,
+  deleteCena,
   limparTokens,
+  salvarCena,
   moveMapToken,
   removeMapToken,
   resizeMapToken,
@@ -206,6 +209,7 @@ interface MapData {
   map: MapCfg;
   tokens: Token[];
   turno: string | null;
+  scenes?: { id: string; nome: string }[];
   viewerId: string | null;
   isMaster: boolean;
 }
@@ -246,12 +250,7 @@ export function CombatMap({
   const [revelado, setReveladoLocal] = useState<Set<string>>(
     () => new Set(initial.map.revelado),
   );
-  const [medida, setMedida] = useState<{
-    x0: number;
-    y0: number;
-    x1: number;
-    y1: number;
-  } | null>(null);
+  const [medida, setMedida] = useState<{ x: number; y: number }[] | null>(null);
   const [rotDrag, setRotDrag] = useState<{ id: string; rot: number } | null>(
     null,
   );
@@ -286,6 +285,7 @@ export function CombatMap({
   const [tkImg, setTkImg] = useState("");
   const [tkLado, setTkLado] = useState("INIMIGO");
   const [tkTipo, setTkTipo] = useState("TOKEN");
+  const [cenaNome, setCenaNome] = useState("");
 
   const isMaster = data.isMaster;
   const cell = data.map.cell;
@@ -630,12 +630,12 @@ export function CombatMap({
       };
       return;
     }
-    // Régua: mede distância em quadros.
+    // Régua: mede distância em quadros (botão direito adiciona vértice).
     if (modo === "medir") {
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       const w = pontoMundo(e);
       dragRef.current = { kind: "medir", startX: e.clientX, startY: e.clientY, ox: 0, oy: 0 };
-      setMedida({ x0: w.x, y0: w.y, x1: w.x, y1: w.y });
+      setMedida([w, { ...w }]);
       return;
     }
     // Névoa (Mestre): pinta células reveladas.
@@ -717,7 +717,12 @@ export function CombatMap({
       );
     } else if (d.kind === "medir") {
       const w = pontoMundo(e);
-      setMedida((m) => (m ? { ...m, x1: w.x, y1: w.y } : m));
+      setMedida((m) => {
+        if (!m || m.length === 0) return m;
+        const n = m.slice();
+        n[n.length - 1] = w; // último ponto acompanha o cursor
+        return n;
+      });
     } else if (d.kind === "nevoa") {
       pintarCelula(e);
     } else if (d.kind === "token" && d.id && d.canMove) {
@@ -1191,6 +1196,72 @@ export function CombatMap({
                 </div>
               </section>
             )}
+
+            {/* Cenas: salvar/arquivar o mapa e puxar a mesa */}
+            <section className="paper paper-edge space-y-2 rounded-md p-3">
+              <p className="label">Cenas do mapa</p>
+              <div className="flex gap-1">
+                <input
+                  className="field text-sm"
+                  value={cenaNome}
+                  onChange={(e) => setCenaNome(e.target.value)}
+                  placeholder="Nome da cena"
+                />
+                <button
+                  type="button"
+                  className="btn btn-dark tap text-xs"
+                  disabled={!cenaNome.trim()}
+                  onClick={() =>
+                    run(async () => {
+                      const r = await salvarCena(cenaNome);
+                      if (r.ok) setCenaNome("");
+                      return r;
+                    })
+                  }
+                >
+                  Salvar
+                </button>
+              </div>
+              {(data.scenes ?? []).length === 0 ? (
+                <p className="typewriter text-[0.65rem] text-sepia-dark">
+                  Nenhuma cena salva.
+                </p>
+              ) : (
+                <div className="max-h-40 space-y-1 overflow-y-auto">
+                  {(data.scenes ?? []).map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-1 rounded border border-sepia/25 bg-black/[0.03] p-1"
+                    >
+                      <span className="typewriter min-w-0 flex-1 truncate text-xs text-sepia-ink">
+                        {s.nome}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-primary tap text-[0.65rem]"
+                        title="Carregar (puxa a mesa para esta cena)"
+                        onClick={() => {
+                          if (confirm(`Carregar "${s.nome}"? Substitui o mapa e os tokens atuais.`))
+                            run(() => carregarCena(s.id));
+                        }}
+                      >
+                        Carregar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost tap text-[0.65rem]"
+                        onClick={() => {
+                          if (confirm(`Apagar a cena "${s.nome}"?`))
+                            run(() => deleteCena(s.id));
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
 
@@ -1270,7 +1341,7 @@ export function CombatMap({
               setMedida(null);
             }}
             className={`btn tap text-xs ${modo === "medir" ? "btn-primary" : "btn-dark"}`}
-            title="Régua: medir distância em quadros"
+            title="Régua: arraste p/ medir; botão direito adiciona um vértice (dobra)"
           >
             📏
           </button>
@@ -1331,7 +1402,15 @@ export function CombatMap({
           onPointerUp={onUp}
           onPointerLeave={onUp}
           onDoubleClick={(e) => e.preventDefault()}
-          onContextMenu={(e) => e.preventDefault()}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            // Régua: com o esquerdo segurado, o direito fixa um vértice.
+            if (dragRef.current?.kind === "medir") {
+              setMedida((m) =>
+                m && m.length ? [...m, { ...m[m.length - 1] }] : m,
+              );
+            }
+          }}
           className={`quadro relative h-[80vh] w-full touch-none select-none overflow-hidden rounded-md ${placing ? "ring-2 ring-stamp-bright" : ""}`}
         >
           <div
@@ -1371,37 +1450,51 @@ export function CombatMap({
               />
             )}
 
-            {/* Régua (medida em quadros) */}
-            {medida && (
+            {/* Régua (polilinha com vértices) */}
+            {medida && medida.length >= 2 && (
               <svg
                 className="pointer-events-none absolute left-0 top-0 overflow-visible"
                 width={1}
                 height={1}
               >
-                <line
-                  x1={medida.x0}
-                  y1={medida.y0}
-                  x2={medida.x1}
-                  y2={medida.y1}
+                <polyline
+                  points={medida.map((p) => `${p.x},${p.y}`).join(" ")}
+                  fill="none"
                   stroke="rgba(224,192,96,0.95)"
                   strokeWidth={2}
                   strokeDasharray="6 4"
                 />
-                <text
-                  x={(medida.x0 + medida.x1) / 2}
-                  y={(medida.y0 + medida.y1) / 2 - 6}
-                  textAnchor="middle"
-                  className="fill-paper-light"
-                  style={{ fontSize: 14, paintOrder: "stroke" }}
-                  stroke="rgba(10,9,8,0.9)"
-                  strokeWidth={4}
-                >
-                  {Math.max(
-                    Math.abs(Math.round((medida.x1 - medida.x0) / cell)),
-                    Math.abs(Math.round((medida.y1 - medida.y0) / cell)),
-                  )}{" "}
-                  quadros
-                </text>
+                {medida.map((p, i) => (
+                  <circle
+                    key={i}
+                    cx={p.x}
+                    cy={p.y}
+                    r={3}
+                    fill="rgba(224,192,96,0.95)"
+                  />
+                ))}
+                {(() => {
+                  let total = 0;
+                  for (let i = 1; i < medida.length; i++) {
+                    total += Math.max(
+                      Math.abs(Math.round((medida[i].x - medida[i - 1].x) / cell)),
+                      Math.abs(Math.round((medida[i].y - medida[i - 1].y) / cell)),
+                    );
+                  }
+                  const last = medida[medida.length - 1];
+                  return (
+                    <text
+                      x={last.x + 8}
+                      y={last.y - 8}
+                      className="fill-paper-light"
+                      style={{ fontSize: 14, paintOrder: "stroke" }}
+                      stroke="rgba(10,9,8,0.9)"
+                      strokeWidth={4}
+                    >
+                      {total} quadros
+                    </text>
+                  );
+                })()}
               </svg>
             )}
 

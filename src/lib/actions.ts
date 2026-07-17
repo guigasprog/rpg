@@ -1240,6 +1240,119 @@ export async function updateMapSettings(input: {
   return { ok: true };
 }
 
+// Salva a cena atual (config do mapa + todos os tokens).
+export async function salvarCena(nome: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const n = (nome ?? "").trim().slice(0, 120);
+  if (!n) return fail("Dê um nome à cena.");
+  const map = await ensureMap();
+  const tokens = await prisma.mapToken.findMany();
+  const dados = JSON.stringify({
+    map: {
+      backgroundUrl: map.backgroundUrl,
+      cols: map.cols,
+      rows: map.rows,
+      cell: map.cell,
+      showGrid: map.showGrid,
+      fog: map.fog,
+      revelado: map.revelado,
+    },
+    tokens: tokens.map((t) => ({
+      nome: t.nome,
+      imageUrl: t.imageUrl,
+      characterId: t.characterId,
+      ownerId: t.ownerId,
+      lado: t.lado,
+      tipo: t.tipo,
+      rot: t.rot,
+      status: t.status,
+      luz: t.luz,
+      luzCor: t.luzCor,
+      luzCone: t.luzCone,
+      size: t.size,
+      x: t.x,
+      y: t.y,
+    })),
+  });
+  await prisma.mapScene.create({ data: { nome: n, dados } });
+  revalidateMapa();
+  return { ok: true };
+}
+
+// Carrega uma cena: substitui o mapa e os tokens (todos os jogadores passam a
+// ver essa cena, ao vivo).
+export async function carregarCena(id: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const cena = await prisma.mapScene.findUnique({ where: { id } });
+  if (!cena) return fail("Cena não encontrada.");
+  let snap: {
+    map?: Record<string, unknown>;
+    tokens?: Record<string, unknown>[];
+  };
+  try {
+    snap = JSON.parse(cena.dados);
+  } catch {
+    return fail("Cena corrompida.");
+  }
+  const m = snap.map ?? {};
+  await prisma.gameMap.upsert({
+    where: { id: MAP_ID },
+    update: {
+      backgroundUrl: (m.backgroundUrl as string) ?? null,
+      cols: (m.cols as number) ?? 20,
+      rows: (m.rows as number) ?? 14,
+      cell: (m.cell as number) ?? 64,
+      showGrid: (m.showGrid as boolean) ?? true,
+      fog: (m.fog as boolean) ?? false,
+      revelado: (m.revelado as string) ?? "[]",
+    },
+    create: { id: MAP_ID },
+  });
+  await prisma.mapToken.deleteMany({});
+  const toks = (snap.tokens ?? []).slice(0, 500);
+  if (toks.length > 0) {
+    await prisma.mapToken.createMany({
+      data: toks.map((t) => ({
+        nome: String(t.nome ?? ""),
+        imageUrl: (t.imageUrl as string) ?? null,
+        characterId: (t.characterId as string) ?? null,
+        ownerId: (t.ownerId as string) ?? null,
+        lado: String(t.lado ?? "ALIADO"),
+        tipo: String(t.tipo ?? "TOKEN"),
+        rot: Number(t.rot) || 0,
+        status: String(t.status ?? ""),
+        luz: Number(t.luz) || 0,
+        luzCor: String(t.luzCor ?? "#f2d79a"),
+        luzCone: !!t.luzCone,
+        size: Number(t.size) || 0,
+        x: Number(t.x) || 0,
+        y: Number(t.y) || 0,
+      })),
+    });
+  }
+  revalidateMapa();
+  return { ok: true };
+}
+
+export async function deleteCena(id: string): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.mapScene.delete({ where: { id } });
+  revalidateMapa();
+  return { ok: true };
+}
+
 export async function setMapFog(ativo: boolean): Promise<ActionResult> {
   try {
     await requireMaster();
