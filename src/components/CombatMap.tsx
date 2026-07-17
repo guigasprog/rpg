@@ -1580,7 +1580,7 @@ export function CombatMap({
                   {/* Ícone de status no canto direito */}
                   {icone && (
                     <span
-                      className="pointer-events-none absolute -right-1 -top-1 z-10 flex items-center justify-center rounded-full bg-ink leading-none ring-1 ring-paper-light/40"
+                      className="pointer-events-none absolute -right-1 -top-1 flex items-center justify-center rounded-full bg-ink leading-none ring-1 ring-paper-light/40"
                       style={{
                         width: Math.max(16, tsize * 0.34),
                         height: Math.max(16, tsize * 0.34),
