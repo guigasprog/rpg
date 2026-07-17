@@ -127,6 +127,64 @@ const STATUS = [
 function statusIcone(key: string): string {
   return STATUS.find((s) => s.key === key)?.icone ?? "";
 }
+
+// Configuração de iluminação do token (só o Mestre vê/edita) — na ficha rápida.
+function LuzConfig({
+  token,
+  run,
+}: {
+  token: Token;
+  run: (fn: () => Promise<{ ok: boolean; error?: string }>) => void;
+}) {
+  return (
+    <section className="paper paper-edge space-y-2 rounded-md p-3">
+      <p className="label">Iluminação (Mestre)</p>
+      <div className="flex items-center gap-2">
+        <span className="typewriter text-xs text-sepia-ink">Raio</span>
+        <button
+          type="button"
+          className="btn btn-dark tap px-2 py-0.5 text-xs"
+          onClick={() => run(() => setTokenLuz(token.id, Math.max(0, token.luz - 1)))}
+        >
+          −
+        </button>
+        <span className="typewriter w-6 text-center text-sm text-sepia-ink">
+          {token.luz}
+        </span>
+        <button
+          type="button"
+          className="btn btn-dark tap px-2 py-0.5 text-xs"
+          onClick={() => run(() => setTokenLuz(token.id, token.luz + 1))}
+        >
+          ＋
+        </button>
+        <span className="typewriter text-xs text-sepia">quadros</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="typewriter text-xs text-sepia-ink">Cor</span>
+        <input
+          type="color"
+          value={token.luzCor || "#f2d79a"}
+          onChange={(e) => run(() => setTokenLuzCor(token.id, e.target.value))}
+          className="h-6 w-8 cursor-pointer rounded border border-sepia/40 bg-transparent p-0"
+        />
+        <button
+          type="button"
+          className={`btn tap text-xs ${token.luzCone ? "btn-primary" : "btn-dark"}`}
+          onClick={() => run(() => setTokenLuzCone(token.id, !token.luzCone))}
+          title="Lanterna (cone) na direção do token"
+        >
+          🔦 {token.luzCone ? "cone ✓" : "cone"}
+        </button>
+      </div>
+      <p className="typewriter text-[0.65rem] text-sepia-dark">
+        Gire o cone pelo pin no mapa. Jogadores só enxergam o próprio brilho e o
+        de objetos.
+      </p>
+    </section>
+  );
+}
+
 interface CharLite {
   id: string;
   name: string;
@@ -199,6 +257,7 @@ export function CombatMap({
   );
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
+  const [fichaTokenId, setFichaTokenId] = useState<string | null>(null);
   const [qtd, setQtd] = useState(1);
   const [placing, setPlacing] = useState<PlaceItem | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
@@ -234,6 +293,7 @@ export function CombatMap({
   const areaH = data.map.rows * cell;
   const podeEditar =
     !!ficha && (isMaster || ficha.ownerId === data.viewerId);
+  const dtoken = data.tokens.find((x) => x.id === fichaTokenId) ?? null;
 
   // Fontes de luz visíveis para o viewer: o Mestre vê todas; o jogador só o
   // brilho do próprio token e o de objetos (PROP) — o dos outros fica oculto.
@@ -786,6 +846,23 @@ export function CombatMap({
     } finally {
       setFichaLoading(false);
     }
+  }
+
+  // Abre o drawer para um token (personagem → ficha; objeto → só iluminação/GM).
+  function abrirTokenDrawer(t: Token) {
+    setFichaTokenId(t.id);
+    if (t.characterId) {
+      void abrirFicha(t.characterId);
+    } else {
+      setFicha(null);
+      setFichaLoading(false);
+    }
+  }
+
+  function fecharDrawer() {
+    setFicha(null);
+    setFichaLoading(false);
+    setFichaTokenId(null);
   }
 
   async function ajustar(dPv: number, dSan: number) {
@@ -1349,10 +1426,8 @@ export function CombatMap({
                 <div
                   key={t.id}
                   onPointerDown={(e) => onDownToken(e, t)}
-                  onDoubleClick={() => {
-                    if (t.characterId) void abrirFicha(t.characterId);
-                  }}
-                  title={t.characterId ? "Duplo-clique: ficha rápida" : undefined}
+                  onDoubleClick={() => abrirTokenDrawer(t)}
+                  title="Duplo-clique: ficha / iluminação"
                   style={{ left: p.x, top: p.y, width: tsize, height: tsize }}
                   className={`absolute select-none ${meu ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                 >
@@ -1475,48 +1550,9 @@ export function CombatMap({
                           ))}
                         </div>
                       )}
-                      {/* Iluminação e tipo — só o Mestre edita. */}
+                      {/* Tipo (objeto/token) — só o Mestre. Iluminação: na ficha rápida. */}
                       {isMaster && (
-                        <div className="flex flex-wrap items-center justify-center gap-1 rounded-full bg-ink/90 px-1.5 py-0.5 shadow">
-                          <span className="text-[0.6rem]">💡</span>
-                          <button
-                            type="button"
-                            className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
-                            onClick={() =>
-                              run(() => setTokenLuz(t.id, Math.max(0, t.luz - 1)))
-                            }
-                          >
-                            −
-                          </button>
-                          <span className="typewriter w-4 text-center text-[0.6rem] text-paper-light">
-                            {t.luz}
-                          </span>
-                          <button
-                            type="button"
-                            className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
-                            onClick={() => run(() => setTokenLuz(t.id, t.luz + 1))}
-                          >
-                            ＋
-                          </button>
-                          <input
-                            type="color"
-                            value={t.luzCor || "#f2d79a"}
-                            onChange={(e) =>
-                              run(() => setTokenLuzCor(t.id, e.target.value))
-                            }
-                            title="Cor do brilho"
-                            className="h-4 w-5 cursor-pointer rounded border-0 bg-transparent p-0"
-                          />
-                          <button
-                            type="button"
-                            className={`btn px-1.5 py-0 text-[0.6rem] ${t.luzCone ? "btn-primary" : "btn-dark"}`}
-                            title="Lanterna (cone) ligada/desligada"
-                            onClick={() =>
-                              run(() => setTokenLuzCone(t.id, !t.luzCone))
-                            }
-                          >
-                            🔦
-                          </button>
+                        <div className="flex items-center justify-center gap-1 rounded-full bg-ink/90 px-1.5 py-0.5 shadow">
                           <button
                             type="button"
                             className={`btn px-1.5 py-0 text-[0.6rem] ${ehProp ? "btn-primary" : "btn-dark"}`}
@@ -1528,6 +1564,14 @@ export function CombatMap({
                             }
                           >
                             🗿
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
+                            title="Configurar iluminação (ficha rápida)"
+                            onClick={() => abrirTokenDrawer(t)}
+                          >
+                            💡
                           </button>
                         </div>
                       )}
@@ -1668,10 +1712,7 @@ export function CombatMap({
       {(ficha || fichaLoading) && (
         <div
           className="fixed inset-0 z-[85] flex justify-end bg-black/60"
-          onClick={() => {
-            setFicha(null);
-            setFichaLoading(false);
-          }}
+          onClick={fecharDrawer}
         >
           <div
             className="h-full w-[min(92vw,24rem)] overflow-y-auto bg-ink/95 shadow-2xl backdrop-blur"
@@ -1683,6 +1724,7 @@ export function CombatMap({
               </p>
             ) : (
               <div className="space-y-4 p-4">
+                {isMaster && dtoken && <LuzConfig token={dtoken} run={run} />}
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h3 className="display text-xl text-paper-light">
@@ -1706,7 +1748,7 @@ export function CombatMap({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setFicha(null)}
+                    onClick={fecharDrawer}
                     className="rounded bg-black/40 px-2 text-paper/70"
                     aria-label="Fechar"
                   >
@@ -1930,6 +1972,40 @@ export function CombatMap({
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Drawer de objeto (token sem personagem) — iluminação do Mestre. */}
+      {fichaTokenId && !ficha && !fichaLoading && (
+        <div
+          className="fixed inset-0 z-[85] flex justify-end bg-black/60"
+          onClick={fecharDrawer}
+        >
+          <div
+            className="h-full w-[min(92vw,24rem)] space-y-4 overflow-y-auto bg-ink/95 p-4 shadow-2xl backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="display text-xl text-paper-light">
+                {dtoken?.nome || "Objeto"}
+              </h3>
+              <button
+                type="button"
+                onClick={fecharDrawer}
+                className="rounded bg-black/40 px-2 text-paper/70"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+            {isMaster && dtoken ? (
+              <LuzConfig token={dtoken} run={run} />
+            ) : (
+              <p className="typewriter text-sm text-paper/50">
+                Sem configurações para este item.
+              </p>
             )}
           </div>
         </div>

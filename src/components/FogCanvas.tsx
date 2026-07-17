@@ -46,7 +46,7 @@ export function FogCanvas({
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, areaW, areaH);
-    ctx.fillStyle = isMaster ? "rgba(6,5,4,0.55)" : "rgba(4,4,4,0.98)";
+    ctx.fillStyle = isMaster ? "rgba(6,5,4,0.55)" : "rgb(2,2,3)";
     ctx.fillRect(0, 0, areaW, areaH);
 
     function caminhoLuz(l: Luz) {
