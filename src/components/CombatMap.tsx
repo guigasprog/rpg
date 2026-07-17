@@ -20,6 +20,7 @@ import {
   setTokenLuz,
   setTokenLuzCone,
   setTokenLuzCor,
+  setTokenLuzTinge,
   setTokenRot,
   setTokenStatus,
   setTokenTipo,
@@ -101,6 +102,7 @@ interface Token {
   luz: number;
   luzCor: string;
   luzCone: boolean;
+  luzTinge: boolean;
   size: number;
   x: number;
   y: number;
@@ -178,6 +180,14 @@ function LuzConfig({
           title="Lanterna (cone) na direção do token"
         >
           🔦 {token.luzCone ? "cone ✓" : "cone"}
+        </button>
+        <button
+          type="button"
+          className={`btn tap text-xs ${token.luzTinge ? "btn-primary" : "btn-dark"}`}
+          onClick={() => run(() => setTokenLuzTinge(token.id, !token.luzTinge))}
+          title="Filtro de cor na área iluminada (opcional)"
+        >
+          🎨 {token.luzTinge ? "filtro ✓" : "sem filtro"}
         </button>
       </div>
       <p className="typewriter text-[0.65rem] text-sepia-dark">
@@ -313,6 +323,7 @@ export function CombatMap({
         cor: t.luzCor || "#f2d79a",
         cone: t.luzCone,
         dir: t.rot,
+        tinge: t.luzTinge,
       };
     });
 

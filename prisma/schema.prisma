@@ -143,6 +143,7 @@ model MapToken {
   luz         Int      @default(0) // raio de luz em quadros (0 = sem lanterna)
   luzCor      String   @default("#f2d79a") // cor do brilho
   luzCone     Boolean  @default(false) // true = lanterna (cone na direção do rot)
+  luzTinge    Boolean  @default(true) // aplica o filtro de cor na área (opcional)
   size        Int      @default(0) // px; 0 = usa o tamanho de um quadro (cell)
   x           Int      @default(0)
   y           Int      @default(0)

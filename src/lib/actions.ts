@@ -1273,6 +1273,7 @@ export async function salvarCena(nome: string): Promise<ActionResult> {
       luz: t.luz,
       luzCor: t.luzCor,
       luzCone: t.luzCone,
+      luzTinge: t.luzTinge,
       size: t.size,
       x: t.x,
       y: t.y,
@@ -1332,6 +1333,7 @@ export async function carregarCena(id: string): Promise<ActionResult> {
         luz: Number(t.luz) || 0,
         luzCor: String(t.luzCor ?? "#f2d79a"),
         luzCone: !!t.luzCone,
+        luzTinge: t.luzTinge === undefined ? true : !!t.luzTinge,
         size: Number(t.size) || 0,
         x: Number(t.x) || 0,
         y: Number(t.y) || 0,
@@ -1637,6 +1639,20 @@ export async function setTokenLuzCone(
     return fail((e as Error).message);
   }
   await prisma.mapToken.update({ where: { id }, data: { luzCone: !!cone } });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
+export async function setTokenLuzTinge(
+  id: string,
+  tinge: boolean,
+): Promise<ActionResult> {
+  try {
+    await requireMaster();
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  await prisma.mapToken.update({ where: { id }, data: { luzTinge: !!tinge } });
   revalidateMapa();
   return { ok: true, id };
 }

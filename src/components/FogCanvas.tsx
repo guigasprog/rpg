@@ -9,6 +9,7 @@ export interface Luz {
   cor: string; // cor do brilho (#rrggbb)
   cone: boolean; // true = lanterna (cone na direção dir)
   dir: number; // direção em graus (0 = para cima), usada só no cone
+  tinge: boolean; // aplica o filtro de cor (opcional)
 }
 
 const CONE_ANG = 68; // abertura do cone (graus)
@@ -90,7 +91,7 @@ export function FogCanvas({
     // Tinge de leve a área iluminada com a cor do brilho.
     ctx.globalCompositeOperation = "source-over";
     for (const l of luzes) {
-      if (l.r <= 0) continue;
+      if (l.r <= 0 || !l.tinge) continue;
       const [r, gg, b] = hexRgb(l.cor);
       ctx.save();
       caminhoLuz(l);
