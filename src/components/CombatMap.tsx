@@ -1637,16 +1637,14 @@ export function CombatMap({
                 >
                   <div
                     className={`relative h-full w-full ${ehProp ? "" : "token overflow-hidden rounded-full"} ${ehTurno ? "turno-pulse" : ""}`}
-                    style={
-                      ehProp
-                        ? {
-                            transform: `rotate(${rotVal}deg)`,
-                            boxShadow: isSel
-                              ? "0 0 0 2px rgba(231,220,196,0.9)"
-                              : undefined,
-                          }
-                        : { boxShadow: ringos.join(", ") }
-                    }
+                    style={{
+                      transform: `rotate(${rotVal}deg)`,
+                      boxShadow: ehProp
+                        ? isSel
+                          ? "0 0 0 2px rgba(231,220,196,0.9)"
+                          : undefined
+                        : ringos.join(", "),
+                    }}
                   >
                     {t.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
