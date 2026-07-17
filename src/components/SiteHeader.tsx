@@ -2,7 +2,8 @@ import Link from "next/link";
 import { getViewer } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import { LogoutButton } from "@/components/LogoutButton";
-import { FedoraIcon, MagnifierIcon } from "@/components/icons";
+import { NavLinks } from "@/components/NavLinks";
+import { FedoraIcon } from "@/components/icons";
 
 export async function SiteHeader() {
   const viewer = await getViewer();
@@ -19,25 +20,7 @@ export async function SiteHeader() {
         </Link>
 
         <nav className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-          <Link href="/personagens" className="btn btn-ghost tap text-xs">
-            <span className="inline-flex items-center gap-1">
-              <MagnifierIcon /> Dossiês
-            </span>
-          </Link>
-          <Link href="/provas" className="btn btn-ghost tap text-xs">
-            Provas
-          </Link>
-          <Link href="/mapa" className="btn btn-ghost tap text-xs">
-            Mapa
-          </Link>
-          <Link href="/manual" className="btn btn-ghost tap text-xs">
-            Manual
-          </Link>
-          {isMaster && (
-            <Link href="/mestre" className="btn btn-dark tap text-xs">
-              Mesa do Mestre
-            </Link>
-          )}
+          <NavLinks isMaster={isMaster} />
           {viewer && <LogoutButton />}
         </nav>
       </div>
