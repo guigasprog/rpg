@@ -307,6 +307,7 @@ export function CombatMap({
   const [chatOpen, setChatOpen] = useState(true);
   const [stage, setStage] = useState<StageData | null>(null);
   const [modo, setModo] = useState<"normal" | "nevoa" | "medir">("normal");
+  const [ajuda, setAjuda] = useState(false);
   const [revelado, setReveladoLocal] = useState<Set<string>>(
     () => new Set(initial.map.revelado),
   );
@@ -481,6 +482,13 @@ export function CombatMap({
     },
     [puxar],
   );
+
+  // Toast: mensagens de erro somem sozinhas.
+  useEffect(() => {
+    if (!erro) return;
+    const t = setTimeout(() => setErro(null), 3500);
+    return () => clearTimeout(t);
+  }, [erro]);
 
   // Foca (centraliza) o token de quem está no turno quando o turno muda.
   useEffect(() => {
@@ -1396,7 +1404,6 @@ export function CombatMap({
           mapa. Barra de modos (canto sup. esq.): 📏 régua mede em quadros
           {isMaster ? "; 🌫️ pinta a névoa e o botão liga/desliga a névoa de guerra" : ""}.
         </p>
-        {erro && <p className="typewriter text-xs text-stamp">{erro}</p>}
       </aside>
 
       {/* Mapa */}
@@ -1430,6 +1437,14 @@ export function CombatMap({
 
         {/* Modos: seleção / névoa (GM) / régua */}
         <div className="absolute left-2 top-2 z-10 flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setAjuda(true)}
+            className="btn btn-dark tap text-xs"
+            title="Ajuda / atalhos do mapa"
+          >
+            ❓
+          </button>
           <button
             type="button"
             onClick={() => setModo("normal")}
@@ -1675,6 +1690,26 @@ export function CombatMap({
                     )}
                   </div>
 
+                  {/* Indicador de direção (para onde o token "olha") */}
+                  {!ehProp && (
+                    <div
+                      className="pointer-events-none absolute inset-0"
+                      style={{ transform: `rotate(${rotVal}deg)` }}
+                    >
+                      <span
+                        className="absolute left-1/2 -translate-x-1/2"
+                        style={{
+                          top: -Math.max(5, tsize * 0.12),
+                          width: 0,
+                          height: 0,
+                          borderLeft: `${Math.max(4, tsize * 0.1)}px solid transparent`,
+                          borderRight: `${Math.max(4, tsize * 0.1)}px solid transparent`,
+                          borderBottom: `${Math.max(6, tsize * 0.15)}px solid rgba(231,220,196,0.85)`,
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {/* Ícone de status no canto direito */}
                   {icone && (
                     <span
@@ -1891,8 +1926,92 @@ export function CombatMap({
         </div>
       )}
 
+      {/* Toast de feedback */}
+      {erro && (
+        <div className="fixed left-1/2 top-16 z-[97] -translate-x-1/2 rounded-md bg-stamp px-4 py-2 text-sm text-paper-light shadow-lg">
+          {erro}
+        </div>
+      )}
+
       {/* Animação de rolagem (uso de item) */}
       <DiceStage data={stage} onClose={() => setStage(null)} />
+
+      {/* Ajuda / atalhos do mapa */}
+      {ajuda && (
+        <div
+          className="fixed inset-0 z-[96] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setAjuda(false)}
+        >
+          <div
+            className="paper paper-edge max-h-[85vh] w-[min(94vw,32rem)] overflow-y-auto rounded-md p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="display text-lg text-sepia-ink">Mapa — atalhos</h3>
+              <button
+                type="button"
+                onClick={() => setAjuda(false)}
+                className="btn btn-dark tap text-xs"
+              >
+                Fechar
+              </button>
+            </div>
+            <ul className="typewriter space-y-1.5 text-sm text-sepia-ink">
+              <li>
+                <strong>Mover token:</strong> arraste. Segure <strong>Shift</strong> para
+                soltar livre (sem grade).
+              </li>
+              <li>
+                <strong>Andar pelo mapa:</strong> arraste com o <strong>botão
+                direito</strong> (ou 2 dedos). <strong>Roda do mouse</strong> = zoom.
+              </li>
+              <li>
+                <strong>Selecionar vários:</strong> arraste com o esquerdo numa área
+                vazia (Shift soma). <strong>Delete</strong> remove os selecionados.
+              </li>
+              <li>
+                <strong>Duplo-clique:</strong> ficha rápida (personagem) ou
+                configuração (objeto). <strong>Ctrl+clique:</strong> amplia a imagem.
+              </li>
+              <li>
+                <strong>Pin ⟳</strong> (acima do token): girar (Shift = livre; sem =
+                90°). <strong>Pin 🔦</strong>: mirar o cone de luz.
+              </li>
+              <li>
+                <strong>📏 Régua:</strong> arraste para medir; <strong>botão
+                direito</strong> fixa um vértice (dobra).
+              </li>
+              <li>
+                <strong>Alça ◢:</strong> redimensiona o token (Shift = livre).
+              </li>
+              {isMaster && (
+                <>
+                  <li className="border-t border-sepia/25 pt-1.5">
+                    <strong>Colocar peças:</strong> arraste personagens/monstros do
+                    painel para o mapa.
+                  </li>
+                  <li>
+                    <strong>⚙ no token:</strong> tipo (token/objeto), lado e
+                    iluminação (raio, cor, cone, filtro).
+                  </li>
+                  <li>
+                    <strong>🌫️ Névoa:</strong> pinte as células reveladas; o botão
+                    liga/desliga; luz e lanterna revelam com degradê.
+                  </li>
+                  <li>
+                    <strong>Ctrl+C / Ctrl+V:</strong> copiar/colar token.{" "}
+                    <strong>Ctrl+Shift+clique:</strong> pôr na iniciativa.
+                  </li>
+                  <li>
+                    <strong>Cenas:</strong> salve o mapa e carregue depois — puxa
+                    todos os jogadores para a cena.
+                  </li>
+                </>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Ficha rápida (duplo-clique no token) */}
       {(ficha || fichaLoading) && (
