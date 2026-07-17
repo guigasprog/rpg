@@ -1273,6 +1273,7 @@ export async function salvarCena(nome: string): Promise<ActionResult> {
       luz: t.luz,
       luzCor: t.luzCor,
       luzCone: t.luzCone,
+      luzDir: t.luzDir,
       luzTinge: t.luzTinge,
       size: t.size,
       x: t.x,
@@ -1333,6 +1334,7 @@ export async function carregarCena(id: string): Promise<ActionResult> {
         luz: Number(t.luz) || 0,
         luzCor: String(t.luzCor ?? "#f2d79a"),
         luzCone: !!t.luzCone,
+        luzDir: Number(t.luzDir) || 0,
         luzTinge: t.luzTinge === undefined ? true : !!t.luzTinge,
         size: Number(t.size) || 0,
         x: Number(t.x) || 0,
@@ -1482,6 +1484,23 @@ export async function setTokenTipo(
     where: { id },
     data: { tipo: tipo === "PROP" ? "PROP" : "TOKEN" },
   });
+  revalidateMapa();
+  return { ok: true, id };
+}
+
+// Direção da luz (cone) — Mestre ou dono (o jogador mira a própria lanterna).
+export async function setTokenLuzDir(
+  id: string,
+  dir: number,
+): Promise<ActionResult> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Não autenticado.");
+  const tk = await prisma.mapToken.findUnique({ where: { id } });
+  if (!tk) return fail("Token não encontrado.");
+  const isMaster = viewer.role === ROLES.MASTER;
+  if (!isMaster && tk.ownerId !== viewer.id) return fail("Sem permissão.");
+  const r = ((Math.trunc(dir) % 360) + 360) % 360;
+  await prisma.mapToken.update({ where: { id }, data: { luzDir: r } });
   revalidateMapa();
   return { ok: true, id };
 }

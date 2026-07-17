@@ -20,6 +20,7 @@ import {
   setTokenLuz,
   setTokenLuzCone,
   setTokenLuzCor,
+  setTokenLuzDir,
   setTokenLuzTinge,
   setTokenRot,
   setTokenStatus,
@@ -102,6 +103,7 @@ interface Token {
   luz: number;
   luzCor: string;
   luzCone: boolean;
+  luzDir: number;
   luzTinge: boolean;
   size: number;
   x: number;
@@ -133,7 +135,7 @@ function statusIcone(key: string): string {
   return STATUS.find((s) => s.key === key)?.icone ?? "";
 }
 
-// Configuração de iluminação do token (só o Mestre vê/edita) — na ficha rápida.
+// Configuração do token (só o Mestre) na ficha rápida: tipo, lado e iluminação.
 function LuzConfig({
   token,
   run,
@@ -141,9 +143,56 @@ function LuzConfig({
   token: Token;
   run: (fn: () => Promise<{ ok: boolean; error?: string }>) => void;
 }) {
+  const ehProp = token.tipo === "PROP";
   return (
-    <section className="paper paper-edge space-y-2 rounded-md p-3">
-      <p className="label">Iluminação (Mestre)</p>
+    <section className="paper paper-edge space-y-3 rounded-md p-3">
+      <p className="label">Configuração (Mestre)</p>
+
+      {/* Tipo: token (avatar) ou objeto PNG (girável) */}
+      <div className="flex items-center gap-1">
+        <span className="typewriter w-14 text-xs text-sepia-ink">Tipo</span>
+        <button
+          type="button"
+          className={`btn tap text-xs ${!ehProp ? "btn-primary" : "btn-dark"}`}
+          onClick={() => run(() => setTokenTipo(token.id, "TOKEN"))}
+        >
+          Token
+        </button>
+        <button
+          type="button"
+          className={`btn tap text-xs ${ehProp ? "btn-primary" : "btn-dark"}`}
+          onClick={() => run(() => setTokenTipo(token.id, "PROP"))}
+        >
+          Objeto PNG
+        </button>
+      </div>
+
+      {/* Lado (cor da borda) — só para tokens */}
+      {!ehProp && (
+        <div className="flex items-center gap-2">
+          <span className="typewriter w-14 text-xs text-sepia-ink">Lado</span>
+          {LADOS.map((l) => (
+            <button
+              key={l.key}
+              type="button"
+              onClick={() => run(() => setTokenLado(token.id, l.key))}
+              title={l.label}
+              className="h-4 w-4 rounded-full"
+              style={{
+                background: l.cor,
+                outline:
+                  token.lado === l.key
+                    ? "2px solid rgba(51,41,27,0.8)"
+                    : "none",
+                outlineOffset: 1,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2 border-t border-sepia/25 pt-2">
+      <p className="label">Iluminação</p>
       <div className="flex items-center gap-2">
         <span className="typewriter text-xs text-sepia-ink">Raio</span>
         <button
@@ -194,6 +243,7 @@ function LuzConfig({
         Gire o cone pelo pin no mapa. Jogadores só enxergam o próprio brilho e o
         de objetos.
       </p>
+      </div>
     </section>
   );
 }
@@ -264,6 +314,9 @@ export function CombatMap({
   const [rotDrag, setRotDrag] = useState<{ id: string; rot: number } | null>(
     null,
   );
+  const [luzDrag, setLuzDrag] = useState<{ id: string; dir: number } | null>(
+    null,
+  );
   const [ficha, setFicha] = useState<FichaRapida | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [fichaTokenId, setFichaTokenId] = useState<string | null>(null);
@@ -322,14 +375,22 @@ export function CombatMap({
         r: t.luz * cell,
         cor: t.luzCor || "#f2d79a",
         cone: t.luzCone,
-        dir: t.rot,
+        dir: luzDrag?.id === t.id ? luzDrag.dir : t.luzDir,
         tinge: t.luzTinge,
       };
     });
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
-    kind: "pan" | "token" | "resize" | "marquee" | "nevoa" | "medir" | "rotate";
+    kind:
+      | "pan"
+      | "token"
+      | "resize"
+      | "marquee"
+      | "nevoa"
+      | "medir"
+      | "rotate"
+      | "luzrot";
     id?: string;
     canMove?: boolean;
     startX: number;
@@ -703,17 +764,38 @@ export function CombatMap({
     setRotDrag({ id: t.id, rot: t.rot });
   }
 
+  function onDownLuz(e: React.PointerEvent, t: Token) {
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    const rect = wrapRef.current?.getBoundingClientRect();
+    const p = pos[t.id] ?? { x: t.x, y: t.y };
+    const sz = sizes[t.id] ?? (t.size > 0 ? t.size : cell);
+    const cx = (rect?.left ?? 0) + view.tx + (p.x + sz / 2) * view.scale;
+    const cy = (rect?.top ?? 0) + view.ty + (p.y + sz / 2) * view.scale;
+    dragRef.current = {
+      kind: "luzrot",
+      id: t.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      ox: cx,
+      oy: cy,
+      rotVal: t.luzDir,
+    };
+    setLuzDrag({ id: t.id, dir: t.luzDir });
+  }
+
   function onMove(e: React.PointerEvent) {
     const d = dragRef.current;
     if (!d) return;
-    if (d.kind === "rotate" && d.id) {
+    if ((d.kind === "rotate" || d.kind === "luzrot") && d.id) {
       let deg =
         (Math.atan2(e.clientY - d.oy, e.clientX - d.ox) * 180) / Math.PI + 90;
       deg = ((Math.round(deg) % 360) + 360) % 360;
-      if (!e.shiftKey) deg = Math.round(deg / 90) * 90; // sem Shift: passos de 90°
+      if (d.kind === "rotate" && !e.shiftKey) deg = Math.round(deg / 90) * 90;
       d.rotVal = deg;
       const id = d.id;
-      setRotDrag({ id, rot: deg });
+      if (d.kind === "rotate") setRotDrag({ id, rot: deg });
+      else setLuzDrag({ id, dir: deg });
       return;
     }
     if (d.kind === "pan") {
@@ -772,6 +854,16 @@ export function CombatMap({
         await setTokenRot(id, r);
         await puxar();
         setRotDrag(null);
+      })();
+      return;
+    }
+    if (d?.kind === "luzrot" && d.id) {
+      const id = d.id;
+      const r = d.rotVal ?? 0;
+      void (async () => {
+        await setTokenLuzDir(id, r);
+        await puxar();
+        setLuzDrag(null);
       })();
       return;
     }
@@ -1526,6 +1618,14 @@ export function CombatMap({
               const icone = statusIcone(t.status);
               const ehProp = t.tipo === "PROP";
               const rotVal = rotDrag?.id === t.id ? rotDrag.rot : t.rot;
+              const mostrarPinLuz = controles && t.luz > 0 && t.luzCone;
+              const luzDirAtual =
+                luzDrag?.id === t.id ? luzDrag.dir : t.luzDir;
+              const luzL = (t.luz * cell) / 2;
+              const luzPinX =
+                tsize / 2 + Math.sin((luzDirAtual * Math.PI) / 180) * luzL;
+              const luzPinY =
+                tsize / 2 - Math.cos((luzDirAtual * Math.PI) / 180) * luzL;
               return (
                 <div
                   key={t.id}
@@ -1602,7 +1702,7 @@ export function CombatMap({
                     </span>
                   )}
 
-                  {/* Picker de lado + botão de status (token selecionado) */}
+                  {/* Status + atalho de configuração (token selecionado) */}
                   {controles && (
                     <div
                       onPointerDown={(e) => e.stopPropagation()}
@@ -1610,32 +1710,24 @@ export function CombatMap({
                       style={{ top: -tsize * 0.5 - 22 }}
                     >
                       <div className="flex items-center gap-1 rounded-full bg-ink/90 px-1.5 py-1 shadow">
-                        {LADOS.map((l) => (
-                          <button
-                            key={l.key}
-                            type="button"
-                            onClick={() => run(() => setTokenLado(t.id, l.key))}
-                            title={l.label}
-                            className="h-3.5 w-3.5 rounded-full"
-                            style={{
-                              background: l.cor,
-                              outline:
-                                t.lado === l.key
-                                  ? "2px solid rgba(231,220,196,0.9)"
-                                  : "none",
-                              outlineOffset: 1,
-                            }}
-                          />
-                        ))}
-                        <span className="mx-0.5 h-3.5 w-px bg-paper/25" />
                         <button
                           type="button"
                           onClick={() => setStatusOpen((o) => !o)}
                           title="Status/efeito"
-                          className={`flex h-4 w-4 items-center justify-center rounded-full text-[0.6rem] leading-none ${statusOpen ? "bg-stamp/50" : "bg-paper/15"}`}
+                          className={`flex h-5 w-5 items-center justify-center rounded-full text-[0.7rem] leading-none ${statusOpen ? "bg-stamp/50" : "bg-paper/15"}`}
                         >
                           {statusIcone(t.status) || "⚑"}
                         </button>
+                        {isMaster && (
+                          <button
+                            type="button"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-paper/15 text-[0.7rem] leading-none"
+                            title="Configuração (tipo, lado, iluminação)"
+                            onClick={() => abrirTokenDrawer(t)}
+                          >
+                            ⚙
+                          </button>
+                        )}
                       </div>
                       {statusOpen && (
                         <div className="flex max-w-[168px] flex-wrap justify-center gap-0.5 rounded bg-ink/90 px-1 py-0.5 shadow">
@@ -1654,43 +1746,35 @@ export function CombatMap({
                           ))}
                         </div>
                       )}
-                      {/* Tipo (objeto/token) — só o Mestre. Iluminação: na ficha rápida. */}
-                      {isMaster && (
-                        <div className="flex items-center justify-center gap-1 rounded-full bg-ink/90 px-1.5 py-0.5 shadow">
-                          <button
-                            type="button"
-                            className={`btn px-1.5 py-0 text-[0.6rem] ${ehProp ? "btn-primary" : "btn-dark"}`}
-                            title="Alternar objeto PNG (girável) / token"
-                            onClick={() =>
-                              run(() =>
-                                setTokenTipo(t.id, ehProp ? "TOKEN" : "PROP"),
-                              )
-                            }
-                          >
-                            🗿
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-dark px-1.5 py-0 text-[0.6rem]"
-                            title="Configurar iluminação (ficha rápida)"
-                            onClick={() => abrirTokenDrawer(t)}
-                          >
-                            💡
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
 
-                  {/* Pin de giro: arraste para girar (Shift = livre; sem = 90°) */}
+                  {/* Pin de giro: gira o TOKEN (Shift = livre; sem = 90°) */}
                   {controles && (
                     <span
                       onPointerDown={(e) => onDownRot(e, t)}
                       className="absolute left-1/2 z-20 flex h-4 w-4 -translate-x-1/2 cursor-grab items-center justify-center rounded-full bg-paper-light text-[0.6rem] leading-none text-ink shadow active:cursor-grabbing"
                       style={{ top: -tsize * 0.5 - 46 }}
-                      title="Arraste para girar (Shift = qualquer ângulo; sem Shift = 90°)"
+                      title="Girar o token (Shift = qualquer ângulo; sem Shift = 90°)"
                     >
                       ⟳
+                    </span>
+                  )}
+
+                  {/* Pin da luz: mira o cone (fica no meio da luz) */}
+                  {mostrarPinLuz && (
+                    <span
+                      onPointerDown={(e) => onDownLuz(e, t)}
+                      className="absolute z-20 flex h-5 w-5 cursor-grab items-center justify-center rounded-full text-[0.65rem] leading-none shadow active:cursor-grabbing"
+                      style={{
+                        left: luzPinX - 10,
+                        top: luzPinY - 10,
+                        background: t.luzCor || "#f2d79a",
+                        color: "#1a1206",
+                      }}
+                      title="Arraste para mirar a luz (cone)"
+                    >
+                      🔦
                     </span>
                   )}
 
